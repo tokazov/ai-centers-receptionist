@@ -152,7 +152,7 @@ def main_menu_kb(lang: str) -> InlineKeyboardMarkup:
         buttons.append([InlineKeyboardButton(text=f"{cat['emoji']} {name}", callback_data=f"cat:{cat_id}")])
     
     # Add special buttons
-    custom_text = {"ru": "🛠 Создать своего AI-агента", "en": "🛠 Build your own AI agent", "ka": "🛠 შექმენი შენი AI-აგენტი"}
+    custom_text = {"ru": "🛠 Создать своего AI-помощника", "en": "🛠 Build your own AI assistant", "ka": "🛠 შექმენი შენი AI-ასისტენტი"}
     all_text = {"ru": "🔍 Все агенты", "en": "🔍 All agents", "ka": "🔍 ყველა აგენტი"}
     site_text = {"ru": "🌐 Сайт", "en": "🌐 Website", "ka": "🌐 საიტი"}
     course_text = {"ru": "🎓 AI Курс", "en": "🎓 AI Course", "ka": "🎓 AI კურსი"}
@@ -286,7 +286,7 @@ async def cmd_help(message: types.Message):
     help_text = {
         "ru": "Напишите мне что вам нужно, и я подберу подходящего AI-агента!\n\nИли выберите категорию:",
         "en": "Tell me what you need and I'll find the right AI agent!\n\nOr choose a category:",
-        "ka": "მომწერეთ რა გჭირდებათ და მე შესაფერის AI-აგენტს შევარჩევ!\n\nან აირჩიეთ კატეგორია:"
+        "ka": "მომწერეთ რა გჭირდებათ და მე შესაფერის AI-ასისტენტს შევარჩევ!\n\nან აირჩიეთ კატეგორია:"
     }
     await message.answer(t(help_text, lang), reply_markup=main_menu_kb(lang))
 
@@ -336,16 +336,16 @@ ADMIN_ID = 5309206282  # Тимур
 
 CUSTOM_BOT_TEXT = {
     "ru": (
-        "🛠 <b>Создание AI-агента под ключ</b>\n\n"
-        "Мы создадим персонального AI-агента для вашего бизнеса:\n\n"
+        "🛠 <b>Создание AI-помощника под ключ</b>\n\n"
+        "Мы создадим персонального AI-помощника для вашего бизнеса:\n\n"
         "✅ Telegram / WhatsApp / Instagram бот\n"
         "✅ Обученный на ваших данных\n"
         "✅ Отвечает клиентам 24/7\n"
         "✅ Мультиязычный (до 7 языков)\n"
         "✅ Интеграция с CRM\n\n"
         "💰 <b>Стоимость:</b>\n"
-        "• Базовый бот — $499\n"
-        "• Продвинутый (с CRM, аналитикой) — $999\n"
+        "• Базовый AI-помощник — $499\n"
+        "• Продвинутый AI-помощник (CRM, аналитика) — $999\n"
         "• Подписка на обслуживание — от $49/мес\n\n"
         "📋 <b>Примеры:</b>\n"
         "• AI-продавец для интернет-магазина\n"
@@ -356,16 +356,16 @@ CUSTOM_BOT_TEXT = {
         "Хотите обсудить проект? Нажмите кнопку ниже 👇"
     ),
     "en": (
-        "🛠 <b>Custom AI Agent Development</b>\n\n"
-        "We'll build a personalized AI agent for your business:\n\n"
+        "🛠 <b>Custom AI Assistant Development</b>\n\n"
+        "We'll build a personalized AI assistant for your business:\n\n"
         "✅ Telegram / WhatsApp / Instagram bot\n"
         "✅ Trained on your data\n"
         "✅ Answers clients 24/7\n"
         "✅ Multilingual (up to 7 languages)\n"
         "✅ CRM integration\n\n"
         "💰 <b>Pricing:</b>\n"
-        "• Basic bot — $499\n"
-        "• Advanced (CRM, analytics) — $999\n"
+        "• Basic AI assistant — $499\n"
+        "• Advanced AI assistant (CRM, analytics) — $999\n"
         "• Maintenance subscription — from $49/mo\n\n"
         "📋 <b>Examples:</b>\n"
         "• AI sales agent for e-commerce\n"
@@ -376,8 +376,8 @@ CUSTOM_BOT_TEXT = {
         "Want to discuss your project? Click below 👇"
     ),
     "ka": (
-        "🛠 <b>AI-აგენტის შექმნა შეკვეთით</b>\n\n"
-        "შევქმნით პერსონალურ AI-აგენტს თქვენი ბიზნესისთვის:\n\n"
+        "🛠 <b>AI-ასისტენტის შექმნა შეკვეთით</b>\n\n"
+        "შევქმნით პერსონალურ AI-ასისტენტს თქვენი ბიზნესისთვის:\n\n"
         "✅ Telegram / WhatsApp / Instagram ბოტი\n"
         "✅ თქვენს მონაცემებზე გაწვრთნილი\n"
         "✅ კლიენტებს პასუხობს 24/7\n"
@@ -396,7 +396,7 @@ async def on_custom_bot(callback: CallbackQuery):
     lang = get_lang(callback.from_user)
     
     contact_text = {"ru": "💬 Оставить заявку", "en": "💬 Submit request", "ka": "💬 მოთხოვნის გაგზავნა"}
-    examples_text = {"ru": "📱 Примеры наших ботов", "en": "📱 See our bots", "ka": "📱 ჩვენი ბოტები"}
+    examples_text = {"ru": "📱 Примеры наших AI-помощников", "en": "📱 See our AI assistants", "ka": "📱 ჩვენი ბოტები"}
     back_text = {"ru": "⬅️ Назад", "en": "⬅️ Back", "ka": "⬅️ უკან"}
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -467,7 +467,7 @@ async def on_text(message: types.Message):
         # Send to admin (Тимур)
         user = message.from_user
         admin_msg = (
-            f"🔔 <b>Новая заявка на создание бота!</b>\n\n"
+            f"🔔 <b>Новая заявка на AI-помощника!</b>\n\n"
             f"👤 {user.full_name}"
             f"{(' (@' + user.username + ')') if user.username else ''}\n"
             f"🆔 {user.id}\n"
@@ -490,7 +490,7 @@ async def on_text(message: types.Message):
             [InlineKeyboardButton(text=t(back_text, lang), callback_data="back_main")]
         ])
         await message.answer(t(confirm, lang), reply_markup=kb)
-        logger.info(f"Custom bot request from {user.id} ({user.full_name}): {message.text[:100]}")
+        logger.info(f"AI assistant request from {user.id} ({user.full_name}): {message.text[:100]}")
         return
     
     result = find_agent(message.text)
