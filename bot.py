@@ -523,6 +523,110 @@ async def on_submit_request(callback: CallbackQuery):
     await callback.answer()
 
 
+@dp.callback_query(F.data == "pay_subscribe")
+async def on_pay_subscribe(callback: CallbackQuery):
+    lang = get_lang(callback.from_user)
+    text = {
+        "ru": (
+            "💎 <b>Оформление подписки</b>\n\n"
+            "Выберите тариф:\n\n"
+            "⭐ <b>Starter — $15/мес</b>\n"
+            "1 AI-помощник, безлимит сообщений\n\n"
+            "⭐⭐ <b>Pro — $49/мес</b>\n"
+            "5 AI-помощников, приоритетная поддержка\n\n"
+            "⭐⭐⭐ <b>Business — $149/мес</b>\n"
+            "Все помощники + API доступ\n\n"
+            "📧 Для оформления свяжитесь с нами или оплатите на сайте:"
+        ),
+        "en": (
+            "💎 <b>Subscribe</b>\n\n"
+            "Choose a plan:\n\n"
+            "⭐ <b>Starter — $15/mo</b> — 1 AI assistant, unlimited\n"
+            "⭐⭐ <b>Pro — $49/mo</b> — 5 AI assistants\n"
+            "⭐⭐⭐ <b>Business — $149/mo</b> — All + API\n\n"
+            "📧 Contact us or pay on the website:"
+        ),
+        "ka": (
+            "💎 <b>გამოწერა</b>\n\n"
+            "⭐ Starter — $15/თვე\n"
+            "⭐⭐ Pro — $49/თვე\n"
+            "⭐⭐⭐ Business — $149/თვე"
+        )
+    }
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🌐 Оплатить на сайте", url="https://aicenters.co")],
+        [InlineKeyboardButton(text="💬 Написать менеджеру", url="https://t.me/timurtokazov")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_main")]
+    ])
+    await callback.message.edit_text(t(text, lang), reply_markup=kb)
+    
+    # Notify admin
+    user = callback.from_user
+    try:
+        await bot.send_message(ADMIN_ID,
+            f"💰 <b>Клиент хочет подписку!</b>\n\n"
+            f"👤 {user.full_name}{(' (@' + user.username + ')') if user.username else ''}\n"
+            f"🆔 {user.id}")
+    except: pass
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "pay_custom")
+async def on_pay_custom(callback: CallbackQuery):
+    lang = get_lang(callback.from_user)
+    
+    session = custom_sessions.get(callback.from_user.id, {})
+    persona = session.get("persona", "не указано")
+    
+    text = {
+        "ru": (
+            f"🛠 <b>Заказ AI-помощника под ключ</b>\n\n"
+            f"На основе вашего теста мы создадим полноценного AI-помощника:\n\n"
+            f"📝 <b>Ваш запрос:</b> <i>{persona[:200]}</i>\n\n"
+            f"<b>Что входит:</b>\n"
+            f"✅ Отдельный Telegram бот с вашим именем\n"
+            f"✅ Обучение на ваших данных (прайсы, FAQ, каталог)\n"
+            f"✅ Мультиязычность (до 7 языков)\n"
+            f"✅ Интеграция с CRM/WhatsApp\n"
+            f"✅ Аналитика и статистика\n"
+            f"✅ 30 дней бесплатной поддержки\n\n"
+            f"💰 <b>Стоимость: от $499</b>\n"
+            f"⏱ Срок: 3-7 дней\n\n"
+            f"Напишите менеджеру для обсуждения деталей:"
+        ),
+        "en": (
+            f"🛠 <b>Custom AI Assistant Order</b>\n\n"
+            f"Based on your test, we'll build a full AI assistant:\n\n"
+            f"📝 <b>Your request:</b> <i>{persona[:200]}</i>\n\n"
+            f"💰 <b>Price: from $499</b>\n"
+            f"⏱ Delivery: 3-7 days\n\n"
+            f"Contact our manager to discuss details:"
+        ),
+        "ka": (
+            f"🛠 <b>AI-ასისტენტის შეკვეთა</b>\n\n"
+            f"💰 ფასი: $499-დან\n"
+            f"⏱ ვადა: 3-7 დღე"
+        )
+    }
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 Написать менеджеру", url="https://t.me/timurtokazov")],
+        [InlineKeyboardButton(text="🌐 Сайт AI Centers", url="https://aicenters.co")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_main")]
+    ])
+    await callback.message.edit_text(t(text, lang), reply_markup=kb)
+    
+    # Notify admin
+    user = callback.from_user
+    try:
+        await bot.send_message(ADMIN_ID,
+            f"🔥🔥 <b>Клиент хочет AI-помощника под ключ!</b>\n\n"
+            f"👤 {user.full_name}{(' (@' + user.username + ')') if user.username else ''}\n"
+            f"🆔 {user.id}\n"
+            f"📝 Запрос: {persona[:300]}")
+    except: pass
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "all_agents")
 async def on_all_agents(callback: CallbackQuery):
     lang = get_lang(callback.from_user)
@@ -600,36 +704,46 @@ async def on_text(message: types.Message):
     if uid in custom_sessions:
         session = custom_sessions[uid]
         
-        # Check limit
-        if session["count"] >= FREE_LIMIT:
+        # Check limit — switch to sales mode
+        if session["count"] >= FREE_LIMIT and not session.get("sales_mode"):
+            session["sales_mode"] = True
+            session["sales_history"] = []
+            
             limit_text = {
                 "ru": (
-                    f"⏰ <b>Бесплатный лимит исчерпан!</b>\n\n"
-                    f"Вы использовали {FREE_LIMIT} сообщений. Ваш AI-помощник работает отлично!\n\n"
-                    f"Чтобы продолжить:\n"
-                    f"💎 <b>Подписка от $15/мес</b> — безлимитное общение\n"
-                    f"🛠 <b>Свой бот от $499</b> — отдельный бот для вашего бизнеса\n\n"
-                    f"Хотите оформить?"
+                    f"😊 <b>Отлично! Вы попробовали {FREE_LIMIT} сообщений.</b>\n\n"
+                    f"Вижу, что ваш AI-помощник вам полезен! Я — менеджер AI Centers, "
+                    f"помогу вам продолжить использование.\n\n"
+                    f"У нас есть два варианта:\n\n"
+                    f"💎 <b>Подписка — от $15/мес</b>\n"
+                    f"Безлимитное общение с вашим AI-помощником прямо здесь\n\n"
+                    f"🛠 <b>Свой отдельный AI-помощник — от $499</b>\n"
+                    f"Отдельный бот для вашего бизнеса, с вашим брендом, "
+                    f"обученный на ваших данных\n\n"
+                    f"Какой вариант вам интереснее? Или задавайте любые вопросы — я отвечу! 😊"
                 ),
                 "en": (
-                    f"⏰ <b>Free limit reached!</b>\n\n"
-                    f"You've used {FREE_LIMIT} messages. Your AI assistant works great!\n\n"
-                    f"To continue:\n"
-                    f"💎 <b>Subscription from $15/mo</b> — unlimited chat\n"
-                    f"🛠 <b>Custom bot from $499</b> — dedicated bot for your business\n\n"
-                    f"Want to subscribe?"
+                    f"😊 <b>Great! You've tried {FREE_LIMIT} messages.</b>\n\n"
+                    f"I see your AI assistant is useful! I'm the AI Centers manager, "
+                    f"I'll help you continue.\n\n"
+                    f"We have two options:\n\n"
+                    f"💎 <b>Subscription — from $15/mo</b>\n"
+                    f"Unlimited chat with your AI assistant right here\n\n"
+                    f"🛠 <b>Your own AI assistant — from $499</b>\n"
+                    f"Dedicated bot for your business, branded, trained on your data\n\n"
+                    f"Which option interests you? Or ask any questions! 😊"
                 ),
                 "ka": (
-                    f"⏰ <b>უფასო ლიმიტი ამოიწურა!</b>\n\n"
-                    f"გამოიყენეთ {FREE_LIMIT} შეტყობინება.\n\n"
-                    f"💎 <b>გამოწერა $15/თვე-დან</b>\n"
-                    f"🛠 <b>საკუთარი ბოტი $499-დან</b>"
+                    f"😊 <b>შესანიშნავი! თქვენ გამოსცადეთ {FREE_LIMIT} შეტყობინება.</b>\n\n"
+                    f"💎 <b>გამოწერა — $15/თვე-დან</b>\n"
+                    f"🛠 <b>საკუთარი AI-ასისტენტი — $499-დან</b>\n\n"
+                    f"რომელი ვარიანტი გაინტერესებთ? 😊"
                 )
             }
             
             kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="💎 Подписка / Subscribe", url="https://aicenters.co")],
-                [InlineKeyboardButton(text="💬 Оставить заявку", callback_data="submit_request")],
+                [InlineKeyboardButton(text="💎 $15/мес — Подписка", callback_data="pay_subscribe")],
+                [InlineKeyboardButton(text="🛠 $499 — Свой AI-помощник", callback_data="pay_custom")],
                 [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
             ])
             
@@ -645,6 +759,44 @@ async def on_text(message: types.Message):
                     f"📝 Помощник: {session['persona'][:200]}\n"
                     f"💬 Сообщений: {session['count']}")
             except: pass
+            return
+        
+        # === Sales mode — AI Sales Agent handles conversation ===
+        if session.get("sales_mode"):
+            sales_persona = (
+                "Ты — менеджер по продажам AI Centers. Тёплый, дружелюбный, не навязчивый.\n"
+                "Клиент уже попробовал AI-помощника бесплатно и ему понравилось.\n"
+                f"Его помощник был: {session['persona'][:200]}\n\n"
+                "ТВОЯ ЗАДАЧА:\n"
+                "1. Ответить на вопросы клиента\n"
+                "2. Мягко вести к оплате\n"
+                "3. Подчеркнуть ценность (24/7, без зарплаты, мультиязычный)\n"
+                "4. Предложить подходящий тариф\n\n"
+                "ТАРИФЫ:\n"
+                "• Starter $15/мес — 1 AI-помощник, безлимит сообщений\n"
+                "• Pro $49/мес — 5 AI-помощников, приоритет\n"
+                "• Business $149/мес — все помощники + API\n"
+                "• Свой AI-помощник под ключ — $499-999 (отдельный бот, ваш бренд, обучен на ваших данных)\n\n"
+                "ВОЗРАЖЕНИЯ:\n"
+                "• 'Дорого' → Сравни с зарплатой сотрудника ($500-2000/мес). AI работает 24/7 за $15.\n"
+                "• 'Мне надо подумать' → Конечно! Но бесплатный лимит уже исчерпан. Хотите я подарю ещё 5 сообщений?\n"
+                "• 'А качество?' → Вы уже попробовали 20 сообщений и видели результат!\n"
+                "• 'Есть ли гарантии?' → 7 дней гарантия возврата.\n\n"
+                "Пиши коротко, дружелюбно. Используй HTML теги (<b>, <i>). Не будь роботом."
+            )
+            
+            response = gemini_chat(sales_persona, session.get("sales_history", []), message.text)
+            session.setdefault("sales_history", []).append({"user": message.text, "bot": response})
+            
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💎 Оформить подписку", callback_data="pay_subscribe")],
+                [InlineKeyboardButton(text="🛠 Заказать своего помощника", callback_data="pay_custom")]
+            ])
+            
+            await message.answer(response, reply_markup=kb)
+            
+            # Log sales conversation for admin
+            logger.info(f"Sales chat {uid}: '{message.text[:50]}' → '{response[:50]}'")
             return
         
         # Chat with custom assistant
