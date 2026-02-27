@@ -152,10 +152,12 @@ def main_menu_kb(lang: str) -> InlineKeyboardMarkup:
         buttons.append([InlineKeyboardButton(text=f"{cat['emoji']} {name}", callback_data=f"cat:{cat_id}")])
     
     # Add special buttons
+    custom_text = {"ru": "🛠 Создать своего AI-агента", "en": "🛠 Build your own AI agent", "ka": "🛠 შექმენი შენი AI-აგენტი"}
     all_text = {"ru": "🔍 Все агенты", "en": "🔍 All agents", "ka": "🔍 ყველა აგენტი"}
     site_text = {"ru": "🌐 Сайт", "en": "🌐 Website", "ka": "🌐 საიტი"}
     course_text = {"ru": "🎓 AI Курс", "en": "🎓 AI Course", "ka": "🎓 AI კურსი"}
     
+    buttons.append([InlineKeyboardButton(text=t(custom_text, lang), callback_data="custom_bot")])
     buttons.append([
         InlineKeyboardButton(text=t(all_text, lang), callback_data="all_agents"),
         InlineKeyboardButton(text=t(course_text, lang), url="https://t.me/ai_course_center_bot")
@@ -330,6 +332,117 @@ async def on_back(callback: CallbackQuery):
     await callback.answer()
 
 
+ADMIN_ID = 5309206282  # Тимур
+
+CUSTOM_BOT_TEXT = {
+    "ru": (
+        "🛠 <b>Создание AI-агента под ключ</b>\n\n"
+        "Мы создадим персонального AI-агента для вашего бизнеса:\n\n"
+        "✅ Telegram / WhatsApp / Instagram бот\n"
+        "✅ Обученный на ваших данных\n"
+        "✅ Отвечает клиентам 24/7\n"
+        "✅ Мультиязычный (до 7 языков)\n"
+        "✅ Интеграция с CRM\n\n"
+        "💰 <b>Стоимость:</b>\n"
+        "• Базовый бот — $499\n"
+        "• Продвинутый (с CRM, аналитикой) — $999\n"
+        "• Подписка на обслуживание — от $49/мес\n\n"
+        "📋 <b>Примеры:</b>\n"
+        "• AI-продавец для интернет-магазина\n"
+        "• AI-консультант для клиники\n"
+        "• AI-ассистент для ресторана\n"
+        "• AI-HR для найма сотрудников\n"
+        "• AI-поддержка для SaaS\n\n"
+        "Хотите обсудить проект? Нажмите кнопку ниже 👇"
+    ),
+    "en": (
+        "🛠 <b>Custom AI Agent Development</b>\n\n"
+        "We'll build a personalized AI agent for your business:\n\n"
+        "✅ Telegram / WhatsApp / Instagram bot\n"
+        "✅ Trained on your data\n"
+        "✅ Answers clients 24/7\n"
+        "✅ Multilingual (up to 7 languages)\n"
+        "✅ CRM integration\n\n"
+        "💰 <b>Pricing:</b>\n"
+        "• Basic bot — $499\n"
+        "• Advanced (CRM, analytics) — $999\n"
+        "• Maintenance subscription — from $49/mo\n\n"
+        "📋 <b>Examples:</b>\n"
+        "• AI sales agent for e-commerce\n"
+        "• AI consultant for clinics\n"
+        "• AI assistant for restaurants\n"
+        "• AI HR for hiring\n"
+        "• AI support for SaaS\n\n"
+        "Want to discuss your project? Click below 👇"
+    ),
+    "ka": (
+        "🛠 <b>AI-აგენტის შექმნა შეკვეთით</b>\n\n"
+        "შევქმნით პერსონალურ AI-აგენტს თქვენი ბიზნესისთვის:\n\n"
+        "✅ Telegram / WhatsApp / Instagram ბოტი\n"
+        "✅ თქვენს მონაცემებზე გაწვრთნილი\n"
+        "✅ კლიენტებს პასუხობს 24/7\n"
+        "✅ მრავალენოვანი (7 ენამდე)\n\n"
+        "💰 ფასი: $499-დან\n\n"
+        "გსურთ პროექტის განხილვა? დააჭირეთ ქვემოთ 👇"
+    )
+}
+
+# Track users waiting to submit a request
+pending_requests = set()
+
+
+@dp.callback_query(F.data == "custom_bot")
+async def on_custom_bot(callback: CallbackQuery):
+    lang = get_lang(callback.from_user)
+    
+    contact_text = {"ru": "💬 Оставить заявку", "en": "💬 Submit request", "ka": "💬 მოთხოვნის გაგზავნა"}
+    examples_text = {"ru": "📱 Примеры наших ботов", "en": "📱 See our bots", "ka": "📱 ჩვენი ბოტები"}
+    back_text = {"ru": "⬅️ Назад", "en": "⬅️ Back", "ka": "⬅️ უკან"}
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(contact_text, lang), callback_data="submit_request")],
+        [InlineKeyboardButton(text=t(examples_text, lang), callback_data="back_main")],
+        [InlineKeyboardButton(text=t(back_text, lang), callback_data="back_main")]
+    ])
+    
+    await callback.message.edit_text(t(CUSTOM_BOT_TEXT, lang), reply_markup=kb)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "submit_request")
+async def on_submit_request(callback: CallbackQuery):
+    lang = get_lang(callback.from_user)
+    
+    prompt = {
+        "ru": (
+            "📝 <b>Расскажите о вашем проекте:</b>\n\n"
+            "Напишите в свободной форме:\n"
+            "• Какой бизнес?\n"
+            "• Что должен делать бот?\n"
+            "• Для какой платформы? (Telegram, WhatsApp, Instagram)\n"
+            "• Какие языки нужны?\n\n"
+            "Просто напишите сообщение — мы свяжемся с вами! ✉️"
+        ),
+        "en": (
+            "📝 <b>Tell us about your project:</b>\n\n"
+            "Write in free form:\n"
+            "• What business?\n"
+            "• What should the bot do?\n"
+            "• Which platform? (Telegram, WhatsApp, Instagram)\n"
+            "• What languages?\n\n"
+            "Just write a message — we'll get back to you! ✉️"
+        ),
+        "ka": (
+            "📝 <b>მოგვიყევით თქვენი პროექტის შესახებ:</b>\n\n"
+            "დაწერეთ თავისუფალი ფორმით და ჩვენ დაგიკავშირდებით! ✉️"
+        )
+    }
+    
+    pending_requests.add(callback.from_user.id)
+    await callback.message.edit_text(t(prompt, lang))
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "all_agents")
 async def on_all_agents(callback: CallbackQuery):
     lang = get_lang(callback.from_user)
@@ -344,8 +457,42 @@ async def on_all_agents(callback: CallbackQuery):
 
 @dp.message(F.text)
 async def on_text(message: types.Message):
-    """Smart agent recommendation based on user's message"""
+    """Smart agent recommendation or custom bot request"""
     lang = get_lang(message.from_user)
+    
+    # Check if user is submitting a custom bot request
+    if message.from_user.id in pending_requests:
+        pending_requests.discard(message.from_user.id)
+        
+        # Send to admin (Тимур)
+        user = message.from_user
+        admin_msg = (
+            f"🔔 <b>Новая заявка на создание бота!</b>\n\n"
+            f"👤 {user.full_name}"
+            f"{(' (@' + user.username + ')') if user.username else ''}\n"
+            f"🆔 {user.id}\n"
+            f"🌐 Язык: {user.language_code}\n\n"
+            f"📝 <b>Запрос:</b>\n{message.text}"
+        )
+        try:
+            await bot.send_message(ADMIN_ID, admin_msg)
+        except Exception as e:
+            logger.error(f"Failed to notify admin: {e}")
+        
+        # Confirm to user
+        confirm = {
+            "ru": "✅ <b>Заявка принята!</b>\n\nМы свяжемся с вами в ближайшее время. Спасибо! 🙏",
+            "en": "✅ <b>Request received!</b>\n\nWe'll get back to you shortly. Thank you! 🙏",
+            "ka": "✅ <b>მოთხოვნა მიღებულია!</b>\n\nმალე დაგიკავშირდებით. მადლობა! 🙏"
+        }
+        back_text = {"ru": "🏠 Главное меню", "en": "🏠 Main menu", "ka": "🏠 მთავარი მენიუ"}
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t(back_text, lang), callback_data="back_main")]
+        ])
+        await message.answer(t(confirm, lang), reply_markup=kb)
+        logger.info(f"Custom bot request from {user.id} ({user.full_name}): {message.text[:100]}")
+        return
+    
     result = find_agent(message.text)
     
     if result:
