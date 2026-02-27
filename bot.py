@@ -8,6 +8,7 @@ AI Centers Receptionist Bot — Бот-воронка
 import os
 import json
 import logging
+import urllib.request
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import CommandStart, Command
@@ -327,12 +328,52 @@ async def on_category(callback: CallbackQuery):
 @dp.callback_query(F.data == "back_main")
 async def on_back(callback: CallbackQuery):
     lang = get_lang(callback.from_user)
+    # Clear custom session if exists
+    if callback.from_user.id in custom_sessions:
+        del custom_sessions[callback.from_user.id]
     welcome = t(WELCOME, lang)
     await callback.message.edit_text(welcome, reply_markup=main_menu_kb(lang))
     await callback.answer()
 
 
 ADMIN_ID = 5309206282  # Тимур
+GEMINI_KEY = os.getenv("GEMINI_KEY", "AIzaSyDRJLp8JGpKid1pTJBRVgeumPdObveAXwY")
+FREE_LIMIT = 20  # бесплатных сообщений
+
+# === Custom AI assistant sessions ===
+# user_id -> {"persona": str, "history": [], "count": int, "name": str}
+custom_sessions = {}
+
+
+def gemini_chat(persona: str, history: list, user_msg: str) -> str:
+    """Call Gemini API with persona and chat history"""
+    messages = [{"role": "user", "parts": [{"text": f"System instruction: {persona}\n\nВажно: отвечай в роли этого AI-помощника. Не выходи из роли. Используй HTML теги (<b>, <i>) для форматирования. Будь полезным и дружелюбным."}]}]
+    messages.append({"role": "model", "parts": [{"text": "Понял, я буду отвечать строго в роли описанного AI-помощника."}]})
+    
+    for msg in history[-10:]:  # last 10 messages for context
+        messages.append({"role": "user", "parts": [{"text": msg["user"]}]})
+        messages.append({"role": "model", "parts": [{"text": msg["bot"]}]})
+    
+    messages.append({"role": "user", "parts": [{"text": user_msg}]})
+    
+    data = json.dumps({
+        "contents": messages,
+        "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.8}
+    }).encode()
+    
+    req = urllib.request.Request(
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}",
+        data=data,
+        headers={"Content-Type": "application/json"}
+    )
+    
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read())
+            return result["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        logger.error(f"Gemini error: {e}")
+        return "Извините, произошла ошибка. Попробуйте ещё раз."
 
 CUSTOM_BOT_TEXT = {
     "ru": (
@@ -389,23 +430,62 @@ CUSTOM_BOT_TEXT = {
 
 # Track users waiting to submit a request
 pending_requests = set()
+pending_custom_creation = set()
 
 
 @dp.callback_query(F.data == "custom_bot")
 async def on_custom_bot(callback: CallbackQuery):
     lang = get_lang(callback.from_user)
     
+    try_text = {"ru": "🚀 Попробовать бесплатно", "en": "🚀 Try for free", "ka": "🚀 სცადეთ უფასოდ"}
     contact_text = {"ru": "💬 Оставить заявку", "en": "💬 Submit request", "ka": "💬 მოთხოვნის გაგზავნა"}
-    examples_text = {"ru": "📱 Примеры наших AI-помощников", "en": "📱 See our AI assistants", "ka": "📱 ჩვენი ბოტები"}
     back_text = {"ru": "⬅️ Назад", "en": "⬅️ Back", "ka": "⬅️ უკან"}
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(try_text, lang), callback_data="try_custom")],
         [InlineKeyboardButton(text=t(contact_text, lang), callback_data="submit_request")],
-        [InlineKeyboardButton(text=t(examples_text, lang), callback_data="back_main")],
         [InlineKeyboardButton(text=t(back_text, lang), callback_data="back_main")]
     ])
     
     await callback.message.edit_text(t(CUSTOM_BOT_TEXT, lang), reply_markup=kb)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "try_custom")
+async def on_try_custom(callback: CallbackQuery):
+    lang = get_lang(callback.from_user)
+    
+    prompt = {
+        "ru": (
+            "🎨 <b>Создайте своего AI-помощника прямо сейчас!</b>\n\n"
+            "Опишите, каким он должен быть:\n\n"
+            "💡 <b>Примеры:</b>\n"
+            "• <i>AI-консультант для стоматологии, отвечает на вопросы о ценах и записи</i>\n"
+            "• <i>AI-помощник для ресторана, знает меню и принимает бронь</i>\n"
+            "• <i>AI-тренер по продажам, помогает менеджерам закрывать сделки</i>\n"
+            "• <i>AI-учитель английского для детей 7-12 лет</i>\n\n"
+            "Напишите описание — и я создам его за секунды! ⚡\n"
+            f"У вас будет <b>{FREE_LIMIT} бесплатных сообщений</b> для теста."
+        ),
+        "en": (
+            "🎨 <b>Create your AI assistant right now!</b>\n\n"
+            "Describe what it should be:\n\n"
+            "💡 <b>Examples:</b>\n"
+            "• <i>AI consultant for a dental clinic, answers pricing and booking questions</i>\n"
+            "• <i>AI assistant for a restaurant, knows the menu and takes reservations</i>\n"
+            "• <i>AI sales coach helping managers close deals</i>\n\n"
+            "Write a description — I'll create it in seconds! ⚡\n"
+            f"You'll get <b>{FREE_LIMIT} free messages</b> to test."
+        ),
+        "ka": (
+            "🎨 <b>შექმენით თქვენი AI-ასისტენტი ახლავე!</b>\n\n"
+            "აღწერეთ როგორი უნდა იყოს და მე შევქმნი წამებში! ⚡\n"
+            f"თქვენ მიიღებთ <b>{FREE_LIMIT} უფასო შეტყობინებას</b> ტესტირებისთვის."
+        )
+    }
+    
+    pending_custom_creation.add(callback.from_user.id)
+    await callback.message.edit_text(t(prompt, lang))
     await callback.answer()
 
 
@@ -455,13 +535,132 @@ async def on_all_agents(callback: CallbackQuery):
     await callback.answer()
 
 
+@dp.message(Command("reset"))
+async def cmd_reset(message: types.Message):
+    """Reset custom assistant session"""
+    uid = message.from_user.id
+    if uid in custom_sessions:
+        del custom_sessions[uid]
+    lang = get_lang(message.from_user)
+    reset_text = {"ru": "🔄 Сессия сброшена. Нажмите /start для начала.", "en": "🔄 Session reset. Press /start to begin.", "ka": "🔄 სესია გადატვირთულია. დააჭირეთ /start."}
+    await message.answer(t(reset_text, lang))
+
+
 @dp.message(F.text)
 async def on_text(message: types.Message):
-    """Smart agent recommendation or custom bot request"""
+    """Smart agent recommendation, custom creation, or chat with custom assistant"""
     lang = get_lang(message.from_user)
+    uid = message.from_user.id
     
-    # Check if user is submitting a custom bot request
-    if message.from_user.id in pending_requests:
+    # === Creating a new custom assistant ===
+    if uid in pending_custom_creation:
+        pending_custom_creation.discard(uid)
+        
+        persona_desc = message.text
+        custom_sessions[uid] = {
+            "persona": persona_desc,
+            "history": [],
+            "count": 0,
+            "name": "Ваш AI-помощник"
+        }
+        
+        # Generate first greeting from the custom assistant
+        greeting_prompt = f"Ты — AI-помощник. Вот твоя роль: {persona_desc}\n\nПоприветствуй пользователя коротко и предложи помощь. 2-3 предложения максимум."
+        greeting = gemini_chat(persona_desc, [], "Привет!")
+        custom_sessions[uid]["history"].append({"user": "Привет!", "bot": greeting})
+        custom_sessions[uid]["count"] = 1
+        
+        created = {
+            "ru": f"✅ <b>AI-помощник создан!</b>\n\n📝 Роль: <i>{persona_desc[:200]}</i>\n\n{'—' * 20}\n\n{greeting}\n\n{'—' * 20}\n<i>💬 Осталось {FREE_LIMIT - 1} бесплатных сообщений</i>",
+            "en": f"✅ <b>AI assistant created!</b>\n\n📝 Role: <i>{persona_desc[:200]}</i>\n\n{'—' * 20}\n\n{greeting}\n\n{'—' * 20}\n<i>💬 {FREE_LIMIT - 1} free messages remaining</i>",
+            "ka": f"✅ <b>AI-ასისტენტი შექმნილია!</b>\n\n📝 როლი: <i>{persona_desc[:200]}</i>\n\n{'—' * 20}\n\n{greeting}\n\n{'—' * 20}\n<i>💬 დარჩა {FREE_LIMIT - 1} უფასო შეტყობინება</i>"
+        }
+        
+        reset_text = {"ru": "🔄 Сбросить помощника", "en": "🔄 Reset assistant", "ka": "🔄 გადატვირთვა"}
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t(reset_text, lang), callback_data="back_main")]
+        ])
+        
+        await message.answer(t(created, lang), reply_markup=kb)
+        
+        # Notify admin
+        user = message.from_user
+        try:
+            await bot.send_message(ADMIN_ID, 
+                f"🆕 <b>Новый AI-помощник создан!</b>\n\n"
+                f"👤 {user.full_name}{(' (@' + user.username + ')') if user.username else ''}\n"
+                f"🆔 {user.id}\n"
+                f"📝 {persona_desc[:300]}")
+        except: pass
+        
+        logger.info(f"Custom assistant created for {uid}: {persona_desc[:100]}")
+        return
+    
+    # === Chatting with existing custom assistant ===
+    if uid in custom_sessions:
+        session = custom_sessions[uid]
+        
+        # Check limit
+        if session["count"] >= FREE_LIMIT:
+            limit_text = {
+                "ru": (
+                    f"⏰ <b>Бесплатный лимит исчерпан!</b>\n\n"
+                    f"Вы использовали {FREE_LIMIT} сообщений. Ваш AI-помощник работает отлично!\n\n"
+                    f"Чтобы продолжить:\n"
+                    f"💎 <b>Подписка от $15/мес</b> — безлимитное общение\n"
+                    f"🛠 <b>Свой бот от $499</b> — отдельный бот для вашего бизнеса\n\n"
+                    f"Хотите оформить?"
+                ),
+                "en": (
+                    f"⏰ <b>Free limit reached!</b>\n\n"
+                    f"You've used {FREE_LIMIT} messages. Your AI assistant works great!\n\n"
+                    f"To continue:\n"
+                    f"💎 <b>Subscription from $15/mo</b> — unlimited chat\n"
+                    f"🛠 <b>Custom bot from $499</b> — dedicated bot for your business\n\n"
+                    f"Want to subscribe?"
+                ),
+                "ka": (
+                    f"⏰ <b>უფასო ლიმიტი ამოიწურა!</b>\n\n"
+                    f"გამოიყენეთ {FREE_LIMIT} შეტყობინება.\n\n"
+                    f"💎 <b>გამოწერა $15/თვე-დან</b>\n"
+                    f"🛠 <b>საკუთარი ბოტი $499-დან</b>"
+                )
+            }
+            
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💎 Подписка / Subscribe", url="https://aicenters.co")],
+                [InlineKeyboardButton(text="💬 Оставить заявку", callback_data="submit_request")],
+                [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+            ])
+            
+            await message.answer(t(limit_text, lang), reply_markup=kb)
+            
+            # Notify admin about hot lead
+            user = message.from_user
+            try:
+                await bot.send_message(ADMIN_ID,
+                    f"🔥 <b>Горячий лид! Исчерпал лимит!</b>\n\n"
+                    f"👤 {user.full_name}{(' (@' + user.username + ')') if user.username else ''}\n"
+                    f"🆔 {user.id}\n"
+                    f"📝 Помощник: {session['persona'][:200]}\n"
+                    f"💬 Сообщений: {session['count']}")
+            except: pass
+            return
+        
+        # Chat with custom assistant
+        response = gemini_chat(session["persona"], session["history"], message.text)
+        session["history"].append({"user": message.text, "bot": response})
+        session["count"] += 1
+        remaining = FREE_LIMIT - session["count"]
+        
+        if remaining <= 5 and remaining > 0:
+            response += f"\n\n<i>💬 Осталось {remaining} бесплатных сообщений</i>"
+        
+        await message.answer(response)
+        return
+    
+    # === Check if user is submitting a custom bot request ===
+    if uid in pending_requests:
         pending_requests.discard(message.from_user.id)
         
         # Send to admin (Тимур)
