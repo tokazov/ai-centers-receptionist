@@ -332,7 +332,8 @@ async def on_back(callback: CallbackQuery):
 
 
 ADMIN_ID = 5309206282  # Тимур
-GEMINI_KEY = os.getenv("GEMINI_KEY", "AIzaSyDRJLp8JGpKid1pTJBRVgeumPdObveAXwY")
+GEMINI_KEY = os.getenv("GEMINI_KEY", "AIzaSyANFKWkyzXDBqNHidW-df-xiMyMZiramKA")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 FREE_LIMIT = 20  # бесплатных сообщений
 
 # === Custom AI assistant sessions ===
@@ -357,7 +358,7 @@ def gemini_chat(persona: str, history: list, user_msg: str) -> str:
     }).encode()
     
     req = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}",
         data=data,
         headers={"Content-Type": "application/json"}
     )
