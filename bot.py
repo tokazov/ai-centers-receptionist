@@ -9,10 +9,11 @@ import os
 import json
 import logging
 import urllib.request
+import tempfile
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import CommandStart, Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from aiogram.fsm.storage.memory import MemoryStorage
 import asyncio
 
@@ -24,6 +25,9 @@ GEMINI_KEY = os.getenv("GEMINI_KEY", "AIzaSyANFKWkyzXDBqNHidW-df-xiMyMZiramKA")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 ADMIN_ID = 5309206282
 FREE_LIMIT = 20
+ELEVENLABS_KEY = os.getenv("ELEVENLABS_KEY", "")
+VOICE_ID = os.getenv("VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Sarah — warm female voice for receptionist
+VOICE_ENABLED = bool(ELEVENLABS_KEY)
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher(storage=MemoryStorage())
@@ -127,6 +131,51 @@ def gemini_chat(system: str, history: list, user_msg: str) -> str:
         return "Ой, что-то пошло не так. Попробуй ещё раз через секунду 😅"
 
 
+async def text_to_voice(text: str) -> str | None:
+    """Convert text to voice via ElevenLabs."""
+    if not VOICE_ENABLED or len(text) > 800:
+        return None
+    try:
+        data = json.dumps({
+            "text": text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+        }).encode()
+        req = urllib.request.Request(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}",
+            data=data,
+            headers={"xi-api-key": ELEVENLABS_KEY, "Content-Type": "application/json", "Accept": "audio/mpeg"}
+        )
+        resp = urllib.request.urlopen(req, timeout=15)
+        tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        tmp.write(resp.read())
+        tmp.close()
+        return tmp.name
+    except Exception as e:
+        logger.error(f"TTS error: {e}")
+        return None
+
+
+async def send_with_voice(message: types.Message, text: str):
+    """Send text + optional voice message."""
+    await message.answer(text)
+    if VOICE_ENABLED:
+        # Strip HTML tags for TTS
+        import re
+        clean = re.sub(r'<[^>]+>', '', text)
+        clean = re.sub(r'💬.*$', '', clean, flags=re.MULTILINE).strip()  # remove counter line
+        clean = re.sub(r'—{5,}', '', clean).strip()
+        if len(clean) > 20 and len(clean) <= 800:
+            voice_path = await text_to_voice(clean)
+            if voice_path:
+                try:
+                    await message.answer_voice(FSInputFile(voice_path))
+                except Exception as e:
+                    logger.error(f"Voice send error: {e}")
+                finally:
+                    os.unlink(voice_path)
+
+
 def get_session(uid: int) -> dict:
     if uid not in sessions:
         sessions[uid] = {"history": [], "count": 0, "mode": "receptionist", "persona": None}
@@ -141,7 +190,7 @@ async def cmd_start(message: types.Message):
     response = gemini_chat(SYSTEM_PROMPT, [], f"Пользователь нажал /start. Его зовут {message.from_user.full_name}. Язык: {message.from_user.language_code or 'ru'}. Поприветствуй коротко и спроси что нужно.")
     
     sessions[uid]["history"].append({"user": "/start", "bot": response})
-    await message.answer(response)
+    await send_with_voice(message, response)
     logger.info(f"Start: {uid} ({message.from_user.full_name})")
 
 
@@ -211,7 +260,7 @@ async def on_text(message: types.Message):
                 f"[Система: пользователь исчерпал лимит. Последнее сообщение: {text}]"
             )
             session["history"].append({"user": text, "bot": sales_intro})
-            await message.answer(sales_intro)
+            await send_with_voice(message, sales_intro)
             
             # Notify admin
             user = message.from_user
@@ -233,7 +282,7 @@ async def on_text(message: types.Message):
         if remaining <= 5 and remaining > 0:
             response += f"\n\n<i>💬 Осталось {remaining} сообщений</i>"
         
-        await message.answer(response)
+        await send_with_voice(message, response)
         return
     
     # === Mode: sales (after limit) ===
@@ -247,7 +296,7 @@ async def on_text(message: types.Message):
         )
         response = gemini_chat(sales_prompt, session["history"], text)
         session["history"].append({"user": text, "bot": response})
-        await message.answer(response)
+        await send_with_voice(message, response)
         return
     
     # === Mode: receptionist (default) ===
@@ -293,7 +342,7 @@ async def on_text(message: types.Message):
         
         logger.info(f"Created assistant for {uid}: {persona[:100]}")
     else:
-        await message.answer(response)
+        await send_with_voice(message, response)
 
 
 async def main():
