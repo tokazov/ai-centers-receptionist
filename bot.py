@@ -18,7 +18,7 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOKEN = os.getenv("BOT_TOKEN", "8619269517:AAHccQkdgGq-WhovGQypI6FlCwJ-BGjZrv0")
+TOKEN = os.getenv("BOT_TOKEN", "8760464642:AAGsLYjVv-xcfct7F4Q_UuwFiNX9Xi3Ta6g")
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher(storage=MemoryStorage())
