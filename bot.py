@@ -479,7 +479,7 @@ async def on_try_custom(callback: CallbackQuery):
         )
     }
     
-    pending_custom_creation.add(callback.from_user.id)
+    custom_sessions[callback.from_user.id] = {"state": "waiting_description"}
     await callback.message.edit_text(t(prompt, lang))
     await callback.answer()
 
@@ -676,8 +676,7 @@ async def on_text(message: types.Message):
     uid = message.from_user.id
     
     # === Creating a new custom assistant ===
-    if uid in pending_custom_creation:
-        pending_custom_creation.discard(uid)
+    if uid in custom_sessions and custom_sessions[uid].get("state") == "waiting_description":
         
         persona_desc = message.text
         custom_sessions[uid] = {
