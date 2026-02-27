@@ -115,57 +115,52 @@ def t(texts: dict, lang: str) -> str:
 WELCOME = {
     "ru": (
         "👋 <b>Добро пожаловать в AI Centers!</b>\n\n"
-        "Я — AI-рецепционист. Помогу найти идеального AI-агента для вас.\n\n"
-        "У нас <b>60+ специализированных AI-агентов</b>:\n"
-        "🏥 Здоровье и психология\n"
-        "💼 Бизнес и финансы\n"
-        "📚 Образование\n"
-        "✨ Астрология и духовное\n"
-        "🎨 Лайфстайл\n"
-        "💪 Саморазвитие\n\n"
-        "Выберите категорию или просто <b>напишите, что вам нужно</b> — я подберу подходящего агента! 🤖"
+        "У нас два направления:\n\n"
+        "🤖 <b>Готовые AI-агенты</b> — 60+ специалистов\n"
+        "Психолог, юрист, финансист, астролог, фитнес-тренер и другие. "
+        "Выбери нужного и начни общаться прямо сейчас.\n\n"
+        "✨ <b>Живой AI-помощник</b> — создай своего!\n"
+        "Опиши какой помощник тебе нужен — и он появится за 5 секунд. "
+        "Для бизнеса, учёбы, творчества — любая задача.\n\n"
+        "Что выберете? 👇"
     ),
     "en": (
         "👋 <b>Welcome to AI Centers!</b>\n\n"
-        "I'm your AI receptionist. I'll help you find the perfect AI agent.\n\n"
-        "We have <b>60+ specialized AI agents</b>:\n"
-        "🏥 Health & Psychology\n"
-        "💼 Business & Finance\n"
-        "📚 Education\n"
-        "✨ Astrology & Spiritual\n"
-        "🎨 Lifestyle\n"
-        "💪 Self-growth\n\n"
-        "Choose a category or just <b>tell me what you need</b> — I'll find the right agent! 🤖"
+        "We offer two directions:\n\n"
+        "🤖 <b>Ready-made AI Agents</b> — 60+ specialists\n"
+        "Psychologist, lawyer, finance, astrology, fitness and more. "
+        "Pick one and start chatting now.\n\n"
+        "✨ <b>Live AI Assistant</b> — create your own!\n"
+        "Describe what assistant you need — it appears in 5 seconds. "
+        "For business, study, creativity — any task.\n\n"
+        "What will you choose? 👇"
     ),
     "ka": (
         "👋 <b>კეთილი იყოს თქვენი მობრძანება AI Centers-ში!</b>\n\n"
-        "მე ვარ AI-რეცეფციონისტი. დაგეხმარებით იდეალური AI-აგენტის პოვნაში.\n\n"
-        "ჩვენ გვაქვს <b>60+ სპეციალიზებული AI-აგენტი</b>.\n\n"
-        "აირჩიეთ კატეგორია ან უბრალოდ <b>მომწერეთ რა გჭირდებათ</b>! 🤖"
+        "🤖 <b>მზა AI-აგენტები</b> — 60+ სპეციალისტი\n"
+        "✨ <b>ცოცხალი AI-ასისტენტი</b> — შექმენი შენი!\n\n"
+        "რას აირჩევთ? 👇"
     )
 }
 
 # === Keyboards ===
 def main_menu_kb(lang: str) -> InlineKeyboardMarkup:
-    buttons = []
-    for cat_id, cat in CATEGORIES.items():
-        name = t(cat["name"], lang)
-        buttons.append([InlineKeyboardButton(text=f"{cat['emoji']} {name}", callback_data=f"cat:{cat_id}")])
-    
-    # Add special buttons
-    custom_text = {"ru": "🛠 Создать своего AI-помощника", "en": "🛠 Build your own AI assistant", "ka": "🛠 შექმენი შენი AI-ასისტენტი"}
-    all_text = {"ru": "🔍 Все агенты", "en": "🔍 All agents", "ka": "🔍 ყველა აგენტი"}
-    site_text = {"ru": "🌐 Сайт", "en": "🌐 Website", "ka": "🌐 საიტი"}
+    # Two main sections
+    create_text = {"ru": "✨ Создать живого AI-помощника", "en": "✨ Create live AI assistant", "ka": "✨ შექმენი ცოცხალი AI-ასისტენტი"}
+    catalog_text = {"ru": "🤖 Каталог AI-агентов (60+)", "en": "🤖 AI Agents catalog (60+)", "ka": "🤖 AI-აგენტების კატალოგი (60+)"}
+    custom_order_text = {"ru": "🛠 AI-помощник для бизнеса", "en": "🛠 AI assistant for business", "ka": "🛠 AI-ასისტენტი ბიზნესისთვის"}
     course_text = {"ru": "🎓 AI Курс", "en": "🎓 AI Course", "ka": "🎓 AI კურსი"}
+    site_text = {"ru": "🌐 Сайт", "en": "🌐 Website", "ka": "🌐 საიტი"}
     
-    buttons.append([InlineKeyboardButton(text=t(custom_text, lang), callback_data="custom_bot")])
-    buttons.append([
-        InlineKeyboardButton(text=t(all_text, lang), callback_data="all_agents"),
-        InlineKeyboardButton(text=t(course_text, lang), url="https://t.me/ai_course_center_bot")
-    ])
-    buttons.append([
-        InlineKeyboardButton(text=t(site_text, lang), url="https://aicenters.co")
-    ])
+    buttons = [
+        [InlineKeyboardButton(text=t(create_text, lang), callback_data="try_custom")],
+        [InlineKeyboardButton(text=t(catalog_text, lang), callback_data="show_catalog")],
+        [InlineKeyboardButton(text=t(custom_order_text, lang), callback_data="custom_bot")],
+        [
+            InlineKeyboardButton(text=t(course_text, lang), url="https://t.me/ai_course_center_bot"),
+            InlineKeyboardButton(text=t(site_text, lang), url="https://aicenters.co")
+        ],
+    ]
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -624,6 +619,30 @@ async def on_pay_custom(callback: CallbackQuery):
             f"🆔 {user.id}\n"
             f"📝 Запрос: {persona[:300]}")
     except: pass
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "show_catalog")
+async def on_show_catalog(callback: CallbackQuery):
+    lang = get_lang(callback.from_user)
+    
+    text = {
+        "ru": "🤖 <b>Каталог готовых AI-агентов</b>\n\nВыберите категорию:",
+        "en": "🤖 <b>AI Agents Catalog</b>\n\nChoose a category:",
+        "ka": "🤖 <b>AI-აგენტების კატალოგი</b>\n\nაირჩიეთ კატეგორია:"
+    }
+    
+    buttons = []
+    for cat_id, cat in CATEGORIES.items():
+        name = t(cat["name"], lang)
+        buttons.append([InlineKeyboardButton(text=f"{cat['emoji']} {name}", callback_data=f"cat:{cat_id}")])
+    
+    all_text = {"ru": "🔍 Топ-10 агентов", "en": "🔍 Top 10 agents", "ka": "🔍 ტოპ-10 აგენტი"}
+    back_text = {"ru": "⬅️ Назад", "en": "⬅️ Back", "ka": "⬅️ უკან"}
+    buttons.append([InlineKeyboardButton(text=t(all_text, lang), callback_data="all_agents")])
+    buttons.append([InlineKeyboardButton(text=t(back_text, lang), callback_data="back_main")])
+    
+    await callback.message.edit_text(t(text, lang), reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await callback.answer()
 
 
