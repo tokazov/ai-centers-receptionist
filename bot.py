@@ -13,7 +13,7 @@ import tempfile
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import CommandStart, Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile, LabeledPrice
 from aiogram.fsm.storage.memory import MemoryStorage
 import asyncio
 
@@ -25,6 +25,12 @@ GEMINI_KEY = os.getenv("GEMINI_KEY", "AIzaSyANFKWkyzXDBqNHidW-df-xiMyMZiramKA")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 ADMIN_ID = 5309206282
 FREE_LIMIT = 20
+
+# Telegram Stars pricing
+STARS_WEEK = 150      # ~$2.5/week
+STARS_MONTH = 500     # ~$8/month (discount vs weekly)
+STARS_PREMIUM = 1500  # ~$25/month — all agents + priority
+STARS_CUSTOM = 3000   # ~$50 — custom bot consultation fee
 ELEVENLABS_KEY = os.getenv("ELEVENLABS_KEY", "")
 VOICE_ID = os.getenv("VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Sarah — warm female voice for receptionist
 VOICE_ENABLED = bool(ELEVENLABS_KEY)
@@ -81,6 +87,20 @@ SYSTEM_PROMPT = """Ты — живой AI-рецепционист компан�
 - Свой AI-помощник под ключ от $499 — отдельный бот, обучен на данных клиента
 - AI Курс — 2500 звёзд (≈$40)
 
+ОПЛАТА ЧЕРЕЗ TELEGRAM STARS ⭐:
+- Неделя безлимит: 150 ⭐ (~$2.5)
+- Месяц безлимит: 500 ⭐ (~$8, выгоднее!)
+- Премиум (все агенты + приоритет): 1500 ⭐/мес (~$25)
+- Свой бот под ключ: от 3000 ⭐ (консультация + создание)
+Когда клиент готов платить — скажи что сейчас отправишь счёт и добавь маркер [PAY:week], [PAY:month], [PAY:premium] или [PAY:custom]
+
+ЯЗЫК:
+- ВСЕГДА определяй язык клиента по его сообщению и отвечай на ТОМ ЖЕ языке
+- Если пишет на грузинском — отвечай на грузинском
+- Если на английском — на английском
+- Если на турецком — на турецком
+- НЕ СПРАШИВАЙ на каком языке общаться — просто отвечай на его языке
+
 ВАЖНО:
 - Не перечисляй все услуги сразу. Спрашивай, слушай, рекомендуй точечно.
 - Если человек просто здоровается — поздоровайся, коротко скажи что мы делаем (AI-помощники для бизнеса и жизни) и спроси: "У тебя бизнес или для себя ищешь?" Не задавай размытых вопросов типа "ищешь что-то интересное?"
@@ -97,6 +117,7 @@ ASSISTANT_SYSTEM = """Ты — персональный AI-помощник. Т�
 - Используй HTML теги (<b>, <i>) умеренно
 - Будь полезным и конкретным
 - Не выходи из роли
+- ВСЕГДА отвечай на том же языке, на котором пишет клиент (автоопределение)
 """
 
 
@@ -182,6 +203,89 @@ def get_session(uid: int) -> dict:
     return sessions[uid]
 
 
+# === Stars Payment Handlers ===
+
+STAR_PLANS = {
+    "week": {"title": "AI Centers — Неделя ⭐", "description": "7 дней безлимитного общения с AI-помощником", "stars": STARS_WEEK, "days": 7},
+    "month": {"title": "AI Centers — Месяц ⭐", "description": "30 дней безлимитного общения + все агенты", "stars": STARS_MONTH, "days": 30},
+    "premium": {"title": "AI Centers Premium ⭐", "description": "30 дней — все агенты, приоритет, голосовые ответы", "stars": STARS_PREMIUM, "days": 30},
+    "custom": {"title": "AI-бот под ключ ⭐", "description": "Консультация + создание персонального AI-бота", "stars": STARS_CUSTOM, "days": 0},
+}
+
+# user_id -> {"paid_until": timestamp, "plan": str}
+paid_users = {}
+
+import time as _time
+
+def is_paid(uid: int) -> bool:
+    info = paid_users.get(uid)
+    if not info:
+        return False
+    return info.get("paid_until", 0) > _time.time()
+
+
+async def send_stars_invoice(message: types.Message, plan_key: str):
+    plan = STAR_PLANS.get(plan_key)
+    if not plan:
+        return
+    await message.answer_invoice(
+        title=plan["title"],
+        description=plan["description"],
+        payload=f"plan_{plan_key}",
+        currency="XTR",
+        prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
+        provider_token="",
+    )
+
+
+@dp.pre_checkout_query()
+async def on_pre_checkout(query: types.PreCheckoutQuery):
+    await query.answer(ok=True)
+
+
+@dp.message(F.successful_payment)
+async def on_payment(message: types.Message):
+    uid = message.from_user.id
+    payment = message.successful_payment
+    payload = payment.invoice_payload  # e.g. "plan_week"
+    plan_key = payload.replace("plan_", "")
+    plan = STAR_PLANS.get(plan_key, {})
+    days = plan.get("days", 7)
+    
+    if days > 0:
+        now = _time.time()
+        existing = paid_users.get(uid, {}).get("paid_until", now)
+        start = max(existing, now)
+        paid_users[uid] = {"paid_until": start + days * 86400, "plan": plan_key}
+    
+    session = get_session(uid)
+    session["count"] = 0  # reset message counter
+    
+    stars = payment.total_amount
+    user = message.from_user
+    
+    await message.answer(f"🎉 Оплата прошла! {stars} ⭐ — спасибо!\n\nТеперь у тебя безлимит {'на ' + str(days) + ' дней' if days > 0 else ''}. Пиши что угодно! 🚀")
+    
+    # Notify admin
+    try:
+        await bot.send_message(ADMIN_ID,
+            f"💰 <b>ОПЛАТА!</b>\n"
+            f"👤 {user.full_name}{(' (@' + user.username + ')') if user.username else ''}\n"
+            f"🆔 {user.id}\n"
+            f"⭐ {stars} stars — план: {plan_key}\n"
+            f"📝 Помощник: {session.get('persona', 'рецепционист')[:200]}")
+    except: pass
+    
+    logger.info(f"Payment: {uid} paid {stars} stars for {plan_key}")
+
+
+@dp.callback_query(F.data.startswith("pay_"))
+async def on_pay_callback(callback: types.CallbackQuery):
+    plan_key = callback.data.replace("pay_", "")
+    await send_stars_invoice(callback.message, plan_key)
+    await callback.answer()
+
+
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
@@ -247,20 +351,27 @@ async def on_text(message: types.Message):
         session["count"] += 1
         remaining = FREE_LIMIT - session["count"]
         
-        if remaining <= 0 and not session.get("sales_mode"):
+        if remaining <= 0 and not is_paid(uid) and not session.get("sales_mode"):
             session["sales_mode"] = True
             session["mode"] = "sales"
             
             sales_intro = gemini_chat(
                 SYSTEM_PROMPT + "\n\nСЕЙЧАС РЕЖИМ ПРОДАЖИ. Клиент только что исчерпал 20 бесплатных сообщений с AI-помощником. "
                 f"Его помощник: {session['persona']}. "
-                "Мягко скажи что бесплатные сообщения кончились, похвали выбор, и предложи продолжить за подписку. "
-                "НЕ ПЕРЕЧИСЛЯЙ ВСЕ ТАРИФЫ. Просто скажи что подписка от $15/мес и спроси — интересно ли.",
+                "Мягко скажи что бесплатные сообщения кончились, похвали выбор, предложи продолжить оплатив через Telegram Stars. "
+                "Скажи что неделя всего 150 ⭐, а месяц 500 ⭐ — и кнопки оплаты уже внизу.",
                 session["history"],
                 f"[Система: пользователь исчерпал лимит. Последнее сообщение: {text}]"
             )
             session["history"].append({"user": text, "bot": sales_intro})
-            await send_with_voice(message, sales_intro)
+            
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⭐ Неделя — 150 Stars", callback_data="pay_week")],
+                [InlineKeyboardButton(text="⭐ Месяц — 500 Stars (выгодно!)", callback_data="pay_month")],
+                [InlineKeyboardButton(text="👑 Премиум — 1500 Stars", callback_data="pay_premium")],
+                [InlineKeyboardButton(text="💬 Связаться с @timurtokazov", url="https://t.me/timurtokazov")],
+            ])
+            await message.answer(sales_intro, reply_markup=kb)
             
             # Notify admin
             user = message.from_user
@@ -270,9 +381,14 @@ async def on_text(message: types.Message):
                     f"👤 {user.full_name}{(' (@' + user.username + ')') if user.username else ''}\n"
                     f"🆔 {user.id}\n"
                     f"📝 Помощник: {session['persona'][:200]}\n"
-                    f"💬 {session['count']} сообщений использовано")
+                    f"💬 {session['count']} сообщений использовано\n"
+                    f"⭐ Кнопки оплаты Stars отправлены")
             except: pass
             return
+        
+        # Paid user — no limit
+        if is_paid(uid):
+            remaining = 999
         
         # Normal assistant chat
         system = ASSISTANT_SYSTEM.format(persona=session["persona"])
@@ -302,6 +418,19 @@ async def on_text(message: types.Message):
     # === Mode: receptionist (default) ===
     response = gemini_chat(SYSTEM_PROMPT, session["history"], text)
     session["history"].append({"user": text, "bot": response})
+    
+    # Check for payment markers [PAY:week/month/premium/custom]
+    import re as _re
+    pay_match = _re.search(r'\[PAY:(\w+)\]', response)
+    if pay_match:
+        plan_key = pay_match.group(1)
+        clean_resp = _re.sub(r'\[PAY:\w+\]', '', response).strip()
+        if clean_resp:
+            await message.answer(clean_resp)
+        if plan_key in STAR_PLANS:
+            await send_stars_invoice(message, plan_key)
+        session["history"].append({"user": text, "bot": clean_resp})
+        return
     
     # Check if receptionist wants to create an assistant
     if "[CREATE_ASSISTANT:" in response or "[CREATE_ASSISTANT]" in response:
