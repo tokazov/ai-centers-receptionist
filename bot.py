@@ -13,7 +13,7 @@ import tempfile
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import CommandStart, Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile, LabeledPrice
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile, LabeledPrice, WebAppInfo
 from aiogram.fsm.storage.memory import MemoryStorage
 import asyncio
 
@@ -316,7 +316,9 @@ async def cmd_reset(message: types.Message):
 async def cmd_menu(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✨ Создать AI-помощника", callback_data="create")],
-        [InlineKeyboardButton(text="🤖 Каталог агентов", callback_data="catalog")],
+        [InlineKeyboardButton(text="🤖 Каталог агентов", web_app=WebAppInfo(url="https://aicenters.co/miniapp.html"))],
+        [InlineKeyboardButton(text="🗣️ Голосовой AI-секретарь", callback_data="voice_ai")],
+        [InlineKeyboardButton(text="⭐ Тарифы и оплата", callback_data="pricing")],
         [InlineKeyboardButton(text="🌐 Сайт", url="https://aicenters.co")],
     ])
     await message.answer("Вот что у нас есть:", reply_markup=kb)
@@ -344,6 +346,41 @@ async def on_catalog(callback: types.CallbackQuery):
     session["history"].append({"user": "Покажи каталог", "bot": response})
     
     await callback.message.answer(response)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "voice_ai")
+async def on_voice_ai(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    session = get_session(uid)
+    
+    response = gemini_chat(SYSTEM_PROMPT, session["history"],
+        "[Система: клиент нажал кнопку 'Голосовой AI-секретарь'. Расскажи коротко что это: AI отвечает клиентам реалистичным голосом 24/7, от $300/мес. Спроси какой у него бизнес.]")
+    session["history"].append({"user": "Расскажи про голосового AI-секретаря", "bot": response})
+    
+    await callback.message.answer(response)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "pricing")
+async def on_pricing(callback: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⭐ Неделя — 150 Stars (~$2.5)", callback_data="pay_week")],
+        [InlineKeyboardButton(text="⭐ Месяц — 500 Stars (~$8)", callback_data="pay_month")],
+        [InlineKeyboardButton(text="👑 Премиум — 1500 Stars (~$25)", callback_data="pay_premium")],
+        [InlineKeyboardButton(text="🤖 Бот под ключ — от $499", url="https://t.me/timurtokazov")],
+        [InlineKeyboardButton(text="🗣️ Голосовой секретарь — от $300/мес", url="https://t.me/timurtokazov")],
+    ])
+    await callback.message.answer(
+        "⭐ <b>Тарифы AI Centers</b>\n\n"
+        "🆓 <b>Бесплатно:</b> 20 сообщений с любым агентом\n\n"
+        "⭐ <b>Подписка через Telegram Stars:</b>\n"
+        "• Неделя — 150 ⭐ (~$2.5)\n"
+        "• Месяц — 500 ⭐ (~$8)\n"
+        "• Премиум — 1500 ⭐ (~$25)\n\n"
+        "🤖 <b>Бот под ключ:</b> от $499\n"
+        "🗣️ <b>Голосовой AI-секретарь:</b> от $300/мес\n\n"
+        "Выбери тариф:", reply_markup=kb)
     await callback.answer()
 
 
