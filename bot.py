@@ -34,6 +34,8 @@ STARS_CUSTOM = 3000   # ~$50 — custom bot consultation fee
 ELEVENLABS_KEY = os.getenv("ELEVENLABS_KEY", "")
 VOICE_ID = os.getenv("VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Sarah — warm female voice for receptionist
 VOICE_ENABLED = bool(ELEVENLABS_KEY)
+OPENAI_KEY = os.getenv("OPENAI_KEY", "")
+OPENAI_KEY = os.getenv("OPENAI_KEY", "")
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher(storage=MemoryStorage())
@@ -382,6 +384,67 @@ async def on_pricing(callback: types.CallbackQuery):
         "🗣️ <b>Голосовой AI-секретарь:</b> от $300/мес\n\n"
         "Выбери тариф:", reply_markup=kb)
     await callback.answer()
+
+
+async def speech_to_text(ogg_bytes: bytes) -> str:
+    """Convert voice message to text using OpenAI Whisper."""
+    if not OPENAI_KEY:
+        return ""
+    boundary = "----FormBoundary7MA4YWxkTrZu0gW"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="voice.ogg"\r\n'
+        f"Content-Type: audio/ogg\r\n\r\n"
+    ).encode() + ogg_bytes + (
+        f"\r\n--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="model"\r\n\r\n'
+        f"whisper-1\r\n"
+        f"--{boundary}--\r\n"
+    ).encode()
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/audio/transcriptions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {OPENAI_KEY}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        method="POST"
+    )
+    loop = asyncio.get_event_loop()
+    resp = await loop.run_in_executor(None, lambda: urllib.request.urlopen(req, timeout=30))
+    result = json.loads(resp.read().decode())
+    return result.get("text", "")
+
+
+@dp.message(F.voice)
+async def on_voice(message: types.Message):
+    """Handle incoming voice messages — STT → process as text → reply with voice."""
+    await bot.send_chat_action(message.chat.id, "record_voice")
+    
+    try:
+        # Download voice file
+        file = await bot.get_file(message.voice.file_id)
+        file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file.file_path}"
+        loop = asyncio.get_event_loop()
+        req = urllib.request.Request(file_url)
+        resp = await loop.run_in_executor(None, lambda: urllib.request.urlopen(req, timeout=15))
+        ogg_bytes = resp.read()
+        
+        # STT
+        user_text = await speech_to_text(ogg_bytes)
+        if not user_text:
+            await message.answer("🎤 Не удалось распознать голосовое сообщение. Попробуйте ещё раз или напишите текстом.")
+            return
+        
+        logger.info(f"Voice from {message.from_user.id}: {user_text[:100]}")
+        
+        # Process as if it was a text message — inject text and call on_text logic
+        message.text = user_text
+        await on_text(message)
+        
+    except Exception as e:
+        logger.error(f"Voice handler error: {e}")
+        await message.answer("😔 Ошибка обработки голосового сообщения. Попробуйте написать текстом.")
 
 
 @dp.message(F.text)
