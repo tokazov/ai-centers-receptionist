@@ -328,6 +328,24 @@ async def on_payment(message: types.Message):
     logger.info(f"Payment: {uid} paid {stars} stars for {plan_key}")
 
 
+@dp.callback_query(F.data == "pay_bank")
+async def on_pay_bank(callback: types.CallbackQuery):
+    bank_text = (
+        "💳 <b>Банковский перевод</b>\n\n"
+        "Реквизиты для оплаты:\n\n"
+        "🏦 <b>TBC Bank</b>\n"
+        "IBAN: <code>GE51TB7866536010100033</code>\n"
+        "Получатель: Timur Tokazov\n"
+        "Валюта: GEL (конвертация по курсу банка)\n\n"
+        "📌 В назначении укажите: AI Centers + ваш Telegram @username\n\n"
+        "После перевода отправьте скриншот квитанции @CARGORAPIDO для активации."
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📞 Написать менеджеру", url="https://t.me/CARGORAPIDO")],
+    ])
+    await callback.message.answer(bank_text, reply_markup=kb)
+    await callback.answer()
+
 @dp.callback_query(F.data.startswith("pay_"))
 async def on_pay_callback(callback: types.CallbackQuery):
     plan_key = callback.data.replace("pay_", "")
@@ -339,6 +357,56 @@ async def on_pay_callback(callback: types.CallbackQuery):
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
     sessions[uid] = {"history": [], "count": 0, "mode": "receptionist", "persona": None}
+    
+    # Handle deep links: /start partner, /start buy_starter, etc.
+    args = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else ""
+    
+    if args == "partner":
+        # Partner program registration
+        partner_text = (
+            "🤝 <b>Партнёрская программа AI Centers</b>\n\n"
+            "Зарабатывайте <b>от 20% до 50%</b> с каждого клиента!\n\n"
+            "📈 <b>Как это работает:</b>\n"
+            "1. Вы рекомендуете AI Centers бизнесам\n"
+            "2. Мы создаём и настраиваем AI-бота\n"
+            "3. Вы получаете комиссию каждый месяц\n\n"
+            "💰 <b>Уровни комиссии:</b>\n"
+            "• 1-5 клиентов → <b>20%</b>\n"
+            "• 6-20 клиентов → <b>35%</b>\n"
+            "• 21+ клиентов → <b>50%</b>\n\n"
+            "0 вложений. 0 рисков. Рекуррентный доход.\n\n"
+            "Напишите ваше имя и город, чтобы зарегистрироваться как партнёр 👇"
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Подробнее на сайте", url="https://aicenters.co/partners")],
+            [InlineKeyboardButton(text="📞 Связаться с менеджером", url="https://t.me/CARGORAPIDO")],
+        ])
+        await message.answer(partner_text, reply_markup=kb)
+        sessions[uid]["mode"] = "partner_registration"
+        # Notify admin
+        try:
+            await bot.send_message(ADMIN_ID, f"🤝 Новый партнёр!\n@{message.from_user.username or '?'} ({message.from_user.full_name})\nID: {uid}")
+        except Exception:
+            pass
+        logger.info(f"Partner signup: {uid} ({message.from_user.full_name})")
+        return
+    
+    if args.startswith("buy_"):
+        plan = args.replace("buy_", "")
+        plan_names = {"starter": "Starter ($15/мес)", "pro": "Pro ($29/мес)", "business": "Business ($59/мес)", "enterprise": "Enterprise ($149/мес)"}
+        plan_stars = {"starter": 250, "pro": 500, "business": 1000, "enterprise": 2500}
+        if plan in plan_names:
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=f"⭐ Оплатить {plan_stars[plan]} Stars", callback_data=f"pay_{plan}")],
+                [InlineKeyboardButton(text="💳 Банковский перевод", callback_data="pay_bank")],
+            ])
+            await message.answer(
+                f"🤖 <b>Тариф {plan_names[plan]}</b>\n\n"
+                f"Выберите способ оплаты:",
+                reply_markup=kb
+            )
+            logger.info(f"Buy {plan}: {uid}")
+            return
     
     response = gemini_chat(SYSTEM_PROMPT, [], f"Пользователь нажал /start. Его зовут {message.from_user.full_name}. Язык: {message.from_user.language_code or 'ru'}. Поприветствуй коротко и спроси что нужно.")
     
@@ -361,6 +429,7 @@ async def cmd_menu(message: types.Message):
         [InlineKeyboardButton(text="🤖 Каталог агентов", web_app=WebAppInfo(url="https://aicenters.co/miniapp.html"))],
         [InlineKeyboardButton(text="🗣️ Голосовой AI-секретарь", callback_data="voice_ai")],
         [InlineKeyboardButton(text="⭐ Тарифы и оплата", callback_data="pricing")],
+        [InlineKeyboardButton(text="🤝 Партнёрская программа", url="https://t.me/aicenters_hub_bot?start=partner")],
         [InlineKeyboardButton(text="🌐 Сайт", url="https://aicenters.co")],
     ])
     await message.answer("Вот что у нас есть:", reply_markup=kb)
