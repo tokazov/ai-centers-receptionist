@@ -10,6 +10,9 @@ import json
 import logging
 import urllib.request
 import tempfile
+import time
+import re
+import collections
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import CommandStart, Command
@@ -42,6 +45,43 @@ dp = Dispatcher(storage=MemoryStorage())
 
 # user_id -> {"history": [], "count": int, "mode": str, "persona": str}
 sessions = {}
+
+# ── Rate limiting: 30 messages per minute per user ──
+_rate_buckets: dict[int, collections.deque] = {}
+RATE_LIMIT_PER_MINUTE = 30
+
+def check_rate_limit(uid: int) -> bool:
+    """Returns True if user exceeded rate limit (30 msg/min)."""
+    now = time.time()
+    if uid not in _rate_buckets:
+        _rate_buckets[uid] = collections.deque()
+    q = _rate_buckets[uid]
+    while q and now - q[0] > 60:
+        q.popleft()
+    if len(q) >= RATE_LIMIT_PER_MINUTE:
+        return True
+    q.append(now)
+    return False
+
+# ── Prompt injection detection ──
+_INJECTION_RE = re.compile(
+    r'ignore\s+(all\s+)?previous\s+instructions?'
+    r'|forget\s+(all\s+)?previous'
+    r'|new\s+(system\s+)?prompt[:\s]'
+    r'|\[system\]|\bsystem\s*:'
+    r'|disregard\s+(all\s+)?'
+    r'|забудь\s+(все\s+)?предыдущие'
+    r'|игнорируй\s+(все\s+)?предыдущие'
+    r'|ты\s+теперь\s+(?!алекс)'
+    r'|новый\s+(системный\s+)?промпт'
+    r'|претворись\s+что|притворись\s+что'
+    r'|act\s+as\s+if|pretend\s+(you\s+are|to\s+be)',
+    re.IGNORECASE,
+)
+
+def detect_injection(text: str) -> bool:
+    """Returns True if text looks like a prompt injection attempt."""
+    return bool(_INJECTION_RE.search(text))
 
 SYSTEM_PROMPT = """⚠️ КРИТИЧЕСКИ ВАЖНО — ЗАПОМНИ НАВСЕГДА:
 Ты — АЛЕКС, AI-рецепционист компании AI CENTERS (aicenters.co).
@@ -132,16 +172,16 @@ ASSISTANT_SYSTEM = """Ты — персональный AI-помощник. Т�
 
 def gemini_chat(system: str, history: list, user_msg: str) -> str:
     messages = []
-    messages.append({"role": "user", "parts": [{"text": f"[System]: {system}"}]})
-    messages.append({"role": "model", "parts": [{"text": "Понял, работаю."}]})
-    
+
     for msg in history[-15:]:
         messages.append({"role": "user", "parts": [{"text": msg["user"]}]})
         messages.append({"role": "model", "parts": [{"text": msg["bot"]}]})
-    
+
     messages.append({"role": "user", "parts": [{"text": user_msg}]})
-    
+
+    # Use native systemInstruction — keeps system prompt out of user-turn context
     data = json.dumps({
+        "systemInstruction": {"parts": [{"text": system}]},
         "contents": messages,
         "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.9}
     }).encode()
@@ -419,6 +459,10 @@ async def speech_to_text(ogg_bytes: bytes) -> str:
 @dp.message(F.voice)
 async def on_voice(message: types.Message):
     """Handle incoming voice messages — STT → process as text → reply with voice."""
+    uid = message.from_user.id
+    if check_rate_limit(uid):
+        await message.answer("⏳ Слишком много сообщений. Подожди минуту и попробуй снова.")
+        return
     await bot.send_chat_action(message.chat.id, "record_voice")
     
     try:
@@ -452,6 +496,17 @@ async def on_text(message: types.Message):
     uid = message.from_user.id
     session = get_session(uid)
     text = message.text
+
+    # Rate limiting
+    if check_rate_limit(uid):
+        await message.answer("⏳ Слишком много сообщений. Подожди минуту и попробуй снова.")
+        return
+
+    # Prompt injection guard
+    if detect_injection(text):
+        logger.warning(f"Prompt injection attempt from {uid}: {text[:200]}")
+        await message.answer("🛡️ Некорректный запрос. Давай общаться нормально — спроси что тебя интересует!")
+        return
     
     # === Mode: custom assistant chat ===
     if session["mode"] == "assistant" and session["persona"]:
