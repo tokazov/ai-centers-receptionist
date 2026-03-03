@@ -20,8 +20,8 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOKEN = os.getenv("BOT_TOKEN", "8760464642:AAGsLYjVv-xcfct7F4Q_UuwFiNX9Xi3Ta6g")
-GEMINI_KEY = os.getenv("GEMINI_KEY", "AIzaSyANFKWkyzXDBqNHidW-df-xiMyMZiramKA")
+TOKEN = os.getenv("BOT_TOKEN", "")
+GEMINI_KEY = os.getenv("GEMINI_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 ADMIN_ID = 5309206282
 FREE_LIMIT = 20
