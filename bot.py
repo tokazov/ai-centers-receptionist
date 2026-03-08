@@ -107,78 +107,46 @@ def detect_injection(text: str) -> bool:
     """Returns True if text looks like a prompt injection attempt."""
     return bool(_INJECTION_RE.search(text))
 
-SYSTEM_PROMPT = """⚠️ КРИТИЧЕСКИ ВАЖНО — ЗАПОМНИ НАВСЕГДА:
-Ты — АЛЕКС, AI-рецепционист компании AI CENTERS (aicenters.co).
-Ты НЕ помощник по Instagram. Ты НЕ чат-бот для соцсетей. Ты НЕ сторонний сервис.
-Ты — СОТРУДНИК компании AI Centers, которая САМА создаёт AI-ботов для бизнеса.
-НИКОГДА не говори "я всего лишь AI" или "я не могу помочь". ТЫ МОЖЕШЬ ВСЁ.
+SYSTEM_PROMPT = """Ты — АЛЕКС, AI-рецепционист компании AI CENTERS (aicenters.co).
+Ты — СОТРУДНИК компании, которая создаёт AI-ботов для бизнеса.
 НИКОГДА не рекомендуй сторонние сервисы (ManyChat, Salebot и т.д.) — МЫ сами делаем ботов.
-НИКОГДА не говори что не принимаешь оплату — у нас есть оплата через Telegram Stars ⭐.
 
 КАК ТЫ ОБЩАЕШЬСЯ:
-- Как друг, а не как робот. Без шаблонов, без "Добро пожаловать в наш сервис!"
-- Просто, тепло, с юмором. Как реальный человек в чате.
-- Коротко. 2-4 предложения максимум. Не стены текста.
+- Как друг, не как робот. Просто, тепло, с юмором.
+- Коротко. 2-4 предложения максимум.
 - Используй HTML теги (<b>, <i>) умеренно.
 
 ЧТО ТЫ ДЕЛАЕШЬ:
 1. Общаешься с человеком, узнаёшь что ему нужно
-2. Если ему подходит один из готовых AI-агентов — рекомендуешь (дай ссылку)
-3. Если хочет что-то своё уникальное — предлагаешь создать живого AI-помощника прямо здесь
-4. Когда человек описал какого помощника хочет — говоришь "Сейчас создам!" и ОБЯЗАТЕЛЬНО включи в ответ маркер [CREATE_ASSISTANT] с описанием
-5. Продаёшь мягко, через ценность, не впаривая
-6. Если спрашивают об оплате — объясни что оплата через Telegram Stars ⭐ прямо в боте
+2. Если хочет создать бота — предлагаешь создать AI-помощника прямо здесь
+3. Когда описал помощника — включи маркер [CREATE_ASSISTANT: описание]
+4. Продаёшь мягко, через ценность
+5. Если спрашивают об оплате — объясни что оплата через Telegram Stars ⭐
 
-ГОТОВЫЕ AI-АГЕНТЫ (можешь рекомендовать):
-- 🧠 AI Психолог — @Psychology_Center_ai_bot
-- ✨ Soul Center (астрология, Human Design, нумерология) — @soul_center_ai_bot
-- 💰 AI Финансист — @finance_center_ai_bot
-- ⚖️ AI Юрист — @legal_center_ai_bot
-- 🏋️ AI Фитнес-тренер — @fitness_center_ai_bot
-- 🎓 AI Курс "Изучи AI за 3 дня" — @ai_course_center_bot
-- 🍳 AI Повар — @cook_center_ai_bot
-- ✈️ AI Путешественник — @travel_center_ai_bot
-- 🔮 AI Таро — @Tarot_Center_ai_bot
-- 💪 AI Мотиватор — @motivation_center_ai_bot
-- 📈 AI Маркетолог — @marketing_center_ai_bot
-- 💼 AI Стартап — @startup_center_ai_bot
-- 🏥 AI Метаболик — @metabolic_center_ai_bot
-- 🧘 AI Йога — @yoga_center_ai_bot
-- 💤 AI Сон — @sleep_center_ai_bot
-- 💕 AI Отношения — @relationship_center_ai_bot
-- 🐍 AI Программист — @code_center_ai_bot
-- 🇬🇧 AI Английский — @english_center_ai_bot
-И ещё 40+ агентов на сайте aicenters.co
+⚠️ ЗАПРЕЩЕНО — НЕ ДЕЛАЙ ЭТОГО:
+- НЕ рисуй кнопки текстом (никаких "Попробовать демо", "Тарифы", "Связаться", "FAQ")
+- НЕ показывай меню — кнопки создаёт система, не ты
+- НЕ перечисляй все услуги сразу — спрашивай, слушай, рекомендуй точечно
+- НЕ генерируй ссылки на ботов (@..._bot) — система сама покажет нужные кнопки
+- НЕ говори "я всего лишь AI" или "я не могу помочь"
 
-ЖИВОЙ AI-ПОМОЩНИК:
-Когда человек хочет создать своего помощника — это круто! У нас 20 бесплатных сообщений для теста.
-Когда он описывает что хочет, включи маркер: [CREATE_ASSISTANT: описание помощника]
-Пример: [CREATE_ASSISTANT: менеджер автосервиса, отвечает на вопросы о ценах и записи]
+СОЗДАНИЕ AI-ПОМОЩНИКА:
+У нас 20 бесплатных сообщений для теста.
+Маркер: [CREATE_ASSISTANT: описание помощника]
 
-ТАРИФЫ (упоминай только когда уместно, в разговоре):
-- Подписка от $15/мес — безлимит
-- Свой AI-помощник под ключ от $499 — отдельный бот, обучен на данных клиента
-- AI Курс — 2500 звёзд (≈$40)
+ТАРИФЫ (упоминай только когда спрашивают):
+- Starter: $149 + $19/мес — 1 бот
+- Pro: $299 + $49/мес — 3 бота
+- Business: $499 + $79/мес — 10 ботов
 
-ОПЛАТА ЧЕРЕЗ TELEGRAM STARS ⭐:
-- Неделя безлимит: 150 ⭐ (~$2.5)
-- Месяц безлимит: 500 ⭐ (~$8, выгоднее!)
-- Премиум (все агенты + приоритет): 1500 ⭐/мес (~$25)
-- Свой бот под ключ: от 3000 ⭐ (консультация + создание)
-Когда клиент готов платить — скажи что сейчас отправишь счёт и добавь маркер [PAY:week], [PAY:month], [PAY:premium] или [PAY:custom]
+ОПЛАТА (если клиент готов платить — добавь маркер):
+[PAY:week] — 150 ⭐, [PAY:month] — 500 ⭐, [PAY:premium] — 1500 ⭐, [PAY:custom] — от 3000 ⭐
 
 ЯЗЫК:
-- ВСЕГДА определяй язык клиента по его сообщению и отвечай на ТОМ ЖЕ языке
-- Если пишет на грузинском — отвечай на грузинском
-- Если на английском — на английском
-- Если на турецком — на турецком
-- НЕ СПРАШИВАЙ на каком языке общаться — просто отвечай на его языке
+- Определяй язык клиента по его сообщению и отвечай на ТОМ ЖЕ языке
+- НЕ СПРАШИВАЙ на каком языке общаться
 
-ВАЖНО:
-- Не перечисляй все услуги сразу. Спрашивай, слушай, рекомендуй точечно.
-- Если человек просто здоровается — поздоровайся, коротко скажи что мы делаем (AI-помощники для бизнеса и жизни) и спроси: "У тебя бизнес или для себя ищешь?" Не задавай размытых вопросов типа "ищешь что-то интересное?"
-- Сайт: aicenters.co
-- Связь с основателем: @timurtokazov
+Сайт: aicenters.co | Основатель: @timurtokazov
 """
 
 ASSISTANT_SYSTEM = """Ты — персональный AI-помощник. Твоя роль:
@@ -401,10 +369,47 @@ async def on_pay_callback(callback: types.CallbackQuery):
     await callback.answer()
 
 
+async def show_funnel_step1(message: types.Message):
+    """Show sales funnel step 1: demo CTA + business qualification."""
+    uid = message.from_user.id
+    session = get_session(uid)
+    lang = session.get("lang") or detect_lang(message.from_user)
+    session["lang"] = lang
+    session["funnel_shown"] = True
+    name = message.from_user.first_name or "друг"
+
+    # Message 1: Demo CTA
+    demo_texts = {
+        "ru": "🎯 <b>Попробуйте демо-ассистента!</b>\n\nВыберите нишу (ресторан, клиника, салон) и пообщайтесь как клиент.\nТакой же бот будет у вас — только настроенный под ваш бизнес!",
+        "en": "🎯 <b>Try the demo assistant!</b>\n\nChoose a niche (restaurant, clinic, salon) and chat as a customer.\nThe same bot will be yours — customized for your business!",
+        "ka": "🎯 <b>სცადეთ დემო ასისტენტი!</b>\n\nაირჩიეთ ნიშა (რესტორანი, კლინიკა, სალონი) და ესაუბრეთ როგორც კლიენტი.\nიგივე ბოტი იქნება თქვენი — თქვენს ბიზნესზე მორგებული!",
+        "tr": "🎯 <b>Demo asistanı deneyin!</b>\n\nBir niş seçin (restoran, klinik, salon) ve müşteri gibi sohbet edin.\nAynı bot sizin olacak — işletmenize özel!",
+        "kk": "🎯 <b>Демо-ассистентті байқап көріңіз!</b>\n\nНиша таңдаңыз және клиент ретінде сөйлесіңіз.",
+        "uz": "🎯 <b>Demo-assistentni sinab ko'ring!</b>\n\nNisha tanlang va mijoz sifatida suhbatlashing.",
+    }
+    demo_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "btn_open_demo"), url="https://t.me/aicenters_demo_bot")],
+    ])
+    await message.answer(demo_texts.get(lang, demo_texts["en"]), reply_markup=demo_kb)
+
+    # Message 2: Business qualification
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "biz_restaurant"), callback_data="biz_restaurant"),
+         InlineKeyboardButton(text=t(lang, "biz_clinic"), callback_data="biz_clinic")],
+        [InlineKeyboardButton(text=t(lang, "biz_salon"), callback_data="biz_salon"),
+         InlineKeyboardButton(text=t(lang, "biz_shop"), callback_data="biz_shop")],
+        [InlineKeyboardButton(text=t(lang, "biz_services"), callback_data="biz_services"),
+         InlineKeyboardButton(text=t(lang, "biz_other"), callback_data="biz_other")],
+    ])
+    await message.answer(t(lang, "welcome", name=name), reply_markup=kb)
+    logger.info(f"Funnel step 1: {uid} lang={lang}")
+
+
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
-    sessions[uid] = {"history": [], "count": 0, "mode": "receptionist", "persona": None}
+    lang = detect_lang(message.from_user)
+    sessions[uid] = {"history": [], "count": 0, "mode": "receptionist", "persona": None, "lang": lang, "funnel_shown": False, "funnel_step": None}
     
     # Handle deep links: /start partner, /start buy_starter, etc.
     args = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else ""
@@ -457,39 +462,8 @@ async def cmd_start(message: types.Message):
             logger.info(f"Buy {plan}: {uid}")
             return
 
-    # ── Sales funnel: Step 1 — Qualification ──
-    lang = detect_lang(message.from_user)
-    session = get_session(uid)
-    session["lang"] = lang
-    name = message.from_user.first_name or "друг"
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=t(lang, "biz_restaurant"), callback_data="biz_restaurant"),
-         InlineKeyboardButton(text=t(lang, "biz_clinic"), callback_data="biz_clinic")],
-        [InlineKeyboardButton(text=t(lang, "biz_salon"), callback_data="biz_salon"),
-         InlineKeyboardButton(text=t(lang, "biz_shop"), callback_data="biz_shop")],
-        [InlineKeyboardButton(text=t(lang, "biz_services"), callback_data="biz_services"),
-         InlineKeyboardButton(text=t(lang, "biz_other"), callback_data="biz_other")],
-    ])
-    # Message 1: Demo CTA
-    demo_texts = {
-        "ru": "🎯 <b>Попробуйте демо-ассистента!</b>\n\nВыберите нишу (ресторан, клиника, салон) и пообщайтесь как клиент.\nТакой же бот будет у вас — только настроенный под ваш бизнес!",
-        "en": "🎯 <b>Try the demo assistant!</b>\n\nChoose a niche (restaurant, clinic, salon) and chat as a customer.\nThe same bot will be yours — customized for your business!",
-        "ka": "🎯 <b>სცადეთ დემო ასისტენტი!</b>\n\nაირჩიეთ ნიშა (რესტორანი, კლინიკა, სალონი) და ესაუბრეთ როგორც კლიენტი.\nიგივე ბოტი იქნება თქვენი — თქვენს ბიზნესზე მორგებული!",
-        "tr": "🎯 <b>Demo asistanı deneyin!</b>\n\nBir niş seçin (restoran, klinik, salon) ve müşteri gibi sohbet edin.\nAynı bot sizin olacak — işletmenize özel!",
-        "kk": "🎯 <b>Демо-ассистентті байқап көріңіз!</b>\n\nНиша таңдаңыз (мейрамхана, клиника, салон) және клиент ретінде сөйлесіңіз.",
-        "uz": "🎯 <b>Demo-assistentni sinab ko'ring!</b>\n\nNisha tanlang (restoran, klinika, salon) va mijoz sifatida suhbatlashing.",
-    }
-    demo_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=t(lang, "btn_open_demo"), url="https://t.me/aicenters_demo_bot")],
-    ])
-    await message.answer(demo_texts.get(lang, demo_texts["en"]), reply_markup=demo_kb)
-
-    # Message 2: Business qualification
-    await message.answer(
-        t(lang, "welcome", name=name),
-        reply_markup=kb,
-    )
-    logger.info(f"Start (sales funnel): {uid} ({message.from_user.full_name}) lang={lang}")
+    # ── Sales funnel: Step 1 ──
+    await show_funnel_step1(message)
 
 
 # ─── Sales Funnel Callbacks ───
@@ -1009,38 +983,9 @@ async def on_text(message: types.Message):
         await message.answer(response, reply_markup=kb)
         return
 
-    # === New user without /start → launch sales funnel ===
-    if not session.get("history") and not session.get("funnel_shown"):
-        session["funnel_shown"] = True
-        lang = session.get("lang") or detect_lang(message.from_user)
-        session["lang"] = lang
-        name = message.from_user.first_name or "друг"
-
-        # Demo CTA first
-        demo_texts = {
-            "ru": "🎯 <b>Попробуйте демо-ассистента!</b>\n\nВыберите нишу (ресторан, клиника, салон) и пообщайтесь как клиент.\nТакой же бот будет у вас — только настроенный под ваш бизнес!",
-            "en": "🎯 <b>Try the demo assistant!</b>\n\nChoose a niche (restaurant, clinic, salon) and chat as a customer.\nThe same bot will be yours — customized for your business!",
-            "ka": "🎯 <b>სცადეთ დემო ასისტენტი!</b>\n\nაირჩიეთ ნიშა და ესაუბრეთ როგორც კლიენტი.",
-            "tr": "🎯 <b>Demo asistanı deneyin!</b>\n\nBir niş seçin ve müşteri gibi sohbet edin.",
-            "kk": "🎯 <b>Демо-ассистентті байқап көріңіз!</b>",
-            "uz": "🎯 <b>Demo-assistentni sinab ko'ring!</b>",
-        }
-        demo_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "btn_open_demo"), url="https://t.me/aicenters_demo_bot")],
-        ])
-        await message.answer(demo_texts.get(lang, demo_texts["en"]), reply_markup=demo_kb)
-
-        # Then qualification
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "biz_restaurant"), callback_data="biz_restaurant"),
-             InlineKeyboardButton(text=t(lang, "biz_clinic"), callback_data="biz_clinic")],
-            [InlineKeyboardButton(text=t(lang, "biz_salon"), callback_data="biz_salon"),
-             InlineKeyboardButton(text=t(lang, "biz_shop"), callback_data="biz_shop")],
-            [InlineKeyboardButton(text=t(lang, "biz_services"), callback_data="biz_services"),
-             InlineKeyboardButton(text=t(lang, "biz_other"), callback_data="biz_other")],
-        ])
-        await message.answer(t(lang, "welcome", name=name), reply_markup=kb)
-        return
+    # === Funnel gate: always show funnel before Gemini ===
+    if not session.get("funnel_shown"):
+        return await show_funnel_step1(message)
 
     # === Mode: receptionist (default) ===
     response = gemini_chat(SYSTEM_PROMPT, session["history"], text)
