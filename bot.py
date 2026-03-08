@@ -389,6 +389,7 @@ async def on_pay_bank(callback: types.CallbackQuery):
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📞 Написать менеджеру", url="https://t.me/CARGORAPIDO")],
+        [InlineKeyboardButton(text="← Назад", callback_data="funnel_pricing")],
     ])
     await callback.message.answer(bank_text, reply_markup=kb)
     await callback.answer()
@@ -427,6 +428,7 @@ async def cmd_start(message: types.Message):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📋 Подробнее на сайте", url="https://aicenters.co/partners")],
             [InlineKeyboardButton(text="📞 Связаться с менеджером", url="https://t.me/CARGORAPIDO")],
+            [InlineKeyboardButton(text="← Назад в меню", callback_data="back_menu")],
         ])
         await message.answer(partner_text, reply_markup=kb)
         sessions[uid]["mode"] = "partner_registration"
