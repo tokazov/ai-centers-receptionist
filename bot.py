@@ -34,6 +34,9 @@ STARS_WEEK = 150      # ~$2.5/week
 STARS_MONTH = 500     # ~$8/month (discount vs weekly)
 STARS_PREMIUM = 1500  # ~$25/month — all agents + priority
 STARS_CUSTOM = 3000   # ~$50 — custom bot consultation fee
+PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "https://platform-api-production-f313.up.railway.app")
+PLATFORM_API_KEY = os.getenv("PLATFORM_API_KEY", "")  # internal auth key
+COMPUTER_USE_BOT = os.getenv("COMPUTER_USE_BOT", "aicenters_computer_bot")
 ELEVENLABS_KEY = os.getenv("ELEVENLABS_KEY", "")
 VOICE_ID = os.getenv("VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Sarah — warm female voice for receptionist
 VOICE_ENABLED = bool(ELEVENLABS_KEY)
@@ -312,7 +315,30 @@ async def on_payment(message: types.Message):
     
     stars = payment.total_amount
     user = message.from_user
-    
+
+    # ── Persist to platform-api (same as Cryptomus/TBC) ──
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as http:
+            await http.post(
+                f"{PLATFORM_API_URL}/internal/activate",
+                json={
+                    "user_id": uid,
+                    "plan": plan_key,
+                    "payment_method": "telegram_stars",
+                    "payment_ref": f"stars_{payment.telegram_payment_charge_id}",
+                    "stars": stars,
+                    "username": user.username or "",
+                    "full_name": user.full_name or "",
+                },
+                headers={"X-Internal-Key": PLATFORM_API_KEY},
+                timeout=aiohttp.ClientTimeout(total=10),
+            )
+        logger.info(f"Stars payment synced to platform-api: uid={uid} plan={plan_key}")
+    except Exception as e:
+        logger.error(f"Failed to sync Stars payment to platform-api: {e}")
+        # Payment still works locally even if platform-api is down
+
     await message.answer(f"🎉 Оплата прошла! {stars} ⭐ — спасибо!\n\nТеперь у тебя безлимит {'на ' + str(days) + ' дней' if days > 0 else ''}. Пиши что угодно! 🚀")
     
     # Notify admin
