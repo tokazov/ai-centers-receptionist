@@ -371,6 +371,7 @@ async def on_pay_callback(callback: types.CallbackQuery):
 
 async def show_funnel_step1(message: types.Message):
     """Show sales funnel step 1: demo CTA + business qualification."""
+    logger.info(f"FUNNEL_STEP1 called for user {message.from_user.id}")
     uid = message.from_user.id
     session = get_session(uid)
     lang = session.get("lang") or detect_lang(message.from_user)
@@ -407,6 +408,7 @@ async def show_funnel_step1(message: types.Message):
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
+    logger.info(f"CMD_START called for user {message.from_user.id}, payload: {message.text}")
     uid = message.from_user.id
     lang = detect_lang(message.from_user)
     sessions[uid] = {"history": [], "count": 0, "mode": "receptionist", "persona": None, "lang": lang, "funnel_shown": False, "funnel_step": None}
