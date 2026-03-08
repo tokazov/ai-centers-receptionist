@@ -470,6 +470,21 @@ async def cmd_start(message: types.Message):
         [InlineKeyboardButton(text=t(lang, "biz_services"), callback_data="biz_services"),
          InlineKeyboardButton(text=t(lang, "biz_other"), callback_data="biz_other")],
     ])
+    # Message 1: Demo CTA
+    demo_texts = {
+        "ru": "🎯 <b>Попробуйте демо-ассистента!</b>\n\nВыберите нишу (ресторан, клиника, салон) и пообщайтесь как клиент.\nТакой же бот будет у вас — только настроенный под ваш бизнес!",
+        "en": "🎯 <b>Try the demo assistant!</b>\n\nChoose a niche (restaurant, clinic, salon) and chat as a customer.\nThe same bot will be yours — customized for your business!",
+        "ka": "🎯 <b>სცადეთ დემო ასისტენტი!</b>\n\nაირჩიეთ ნიშა (რესტორანი, კლინიკა, სალონი) და ესაუბრეთ როგორც კლიენტი.\nიგივე ბოტი იქნება თქვენი — თქვენს ბიზნესზე მორგებული!",
+        "tr": "🎯 <b>Demo asistanı deneyin!</b>\n\nBir niş seçin (restoran, klinik, salon) ve müşteri gibi sohbet edin.\nAynı bot sizin olacak — işletmenize özel!",
+        "kk": "🎯 <b>Демо-ассистентті байқап көріңіз!</b>\n\nНиша таңдаңыз (мейрамхана, клиника, салон) және клиент ретінде сөйлесіңіз.",
+        "uz": "🎯 <b>Demo-assistentni sinab ko'ring!</b>\n\nNisha tanlang (restoran, klinika, salon) va mijoz sifatida suhbatlashing.",
+    }
+    demo_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "btn_open_demo"), url="https://t.me/aicenters_demo_bot")],
+    ])
+    await message.answer(demo_texts.get(lang, demo_texts["en"]), reply_markup=demo_kb)
+
+    # Message 2: Business qualification
     await message.answer(
         t(lang, "welcome", name=name),
         reply_markup=kb,
@@ -1000,6 +1015,22 @@ async def on_text(message: types.Message):
         lang = session.get("lang") or detect_lang(message.from_user)
         session["lang"] = lang
         name = message.from_user.first_name or "друг"
+
+        # Demo CTA first
+        demo_texts = {
+            "ru": "🎯 <b>Попробуйте демо-ассистента!</b>\n\nВыберите нишу (ресторан, клиника, салон) и пообщайтесь как клиент.\nТакой же бот будет у вас — только настроенный под ваш бизнес!",
+            "en": "🎯 <b>Try the demo assistant!</b>\n\nChoose a niche (restaurant, clinic, salon) and chat as a customer.\nThe same bot will be yours — customized for your business!",
+            "ka": "🎯 <b>სცადეთ დემო ასისტენტი!</b>\n\nაირჩიეთ ნიშა და ესაუბრეთ როგორც კლიენტი.",
+            "tr": "🎯 <b>Demo asistanı deneyin!</b>\n\nBir niş seçin ve müşteri gibi sohbet edin.",
+            "kk": "🎯 <b>Демо-ассистентті байқап көріңіз!</b>",
+            "uz": "🎯 <b>Demo-assistentni sinab ko'ring!</b>",
+        }
+        demo_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t(lang, "btn_open_demo"), url="https://t.me/aicenters_demo_bot")],
+        ])
+        await message.answer(demo_texts.get(lang, demo_texts["en"]), reply_markup=demo_kb)
+
+        # Then qualification
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=t(lang, "biz_restaurant"), callback_data="biz_restaurant"),
              InlineKeyboardButton(text=t(lang, "biz_clinic"), callback_data="biz_clinic")],
