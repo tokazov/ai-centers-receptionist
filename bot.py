@@ -426,6 +426,7 @@ async def cmd_reset(message: types.Message):
 async def cmd_menu(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✨ Создать AI-помощника", callback_data="create")],
+        [InlineKeyboardButton(text="🖥 Computer Use (CRM, 1C, таблицы)", callback_data="computer_use")],
         [InlineKeyboardButton(text="🤖 Каталог агентов", web_app=WebAppInfo(url="https://aicenters.co/miniapp.html"))],
         [InlineKeyboardButton(text="🗣️ Голосовой AI-секретарь", callback_data="voice_ai")],
         [InlineKeyboardButton(text="⭐ Тарифы и оплата", callback_data="pricing")],
@@ -445,6 +446,66 @@ async def on_create(callback: types.CallbackQuery):
     session["history"].append({"user": "Хочу создать AI-помощника", "bot": response})
     
     await callback.message.answer(response)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "computer_use")
+async def on_computer_use(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    session = get_session(uid)
+
+    text = (
+        "🖥 <b>AI Computer Use</b>\n\n"
+        "AI-сотрудник, который сам работает в ваших программах:\n\n"
+        "• <b>AmoCRM / Bitrix24</b> — заполняет карточки, двигает сделки, ставит задачи\n"
+        "• <b>1C</b> — создаёт накладные, обновляет остатки\n"
+        "• <b>Google Таблицы</b> — собирает данные, строит отчёты\n"
+        "• <b>Маркетплейсы</b> — мониторит заказы, отвечает покупателям\n\n"
+        "⚡ Работает без API — видит экран как человек\n"
+        "⏱ Пилот за 3 дня | 24/7 | от $39/мес\n\n"
+        "Настройка процесса: от $299 (разово)"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Подробнее на сайте", url="https://aicenters.co/computer-use")],
+        [InlineKeyboardButton(text="🎯 Запланировать демо", callback_data="computer_use_demo")],
+        [InlineKeyboardButton(text="💰 Тарифы Computer Use", url="https://aicenters.co/computer-use#pricing")],
+        [InlineKeyboardButton(text="← Меню", callback_data="back_menu")],
+    ])
+
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "computer_use_demo")
+async def on_computer_use_demo(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    session = get_session(uid)
+
+    response = gemini_chat(SYSTEM_PROMPT, session["history"],
+        "[Система: клиент нажал 'Запланировать демо Computer Use'. "
+        "Спроси: 1) В какой системе работает (AmoCRM, Bitrix, 1C, Google Sheets, другое)? "
+        "2) Какой процесс хочет автоматизировать? "
+        "3) Удобное время для демо (30 мин, онлайн). "
+        "Будь коротким и конкретным.]")
+    session["history"].append({"user": "Хочу демо Computer Use", "bot": response})
+
+    await callback.message.answer(response)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "back_menu")
+async def on_back_menu(callback: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✨ Создать AI-помощника", callback_data="create")],
+        [InlineKeyboardButton(text="🖥 Computer Use (CRM, 1C, таблицы)", callback_data="computer_use")],
+        [InlineKeyboardButton(text="🤖 Каталог агентов", web_app=WebAppInfo(url="https://aicenters.co/miniapp.html"))],
+        [InlineKeyboardButton(text="🗣️ Голосовой AI-секретарь", callback_data="voice_ai")],
+        [InlineKeyboardButton(text="⭐ Тарифы и оплата", callback_data="pricing")],
+        [InlineKeyboardButton(text="🤝 Партнёрская программа", url="https://t.me/aicenters_hub_bot?start=partner")],
+        [InlineKeyboardButton(text="🌐 Сайт", url="https://aicenters.co")],
+    ])
+    await callback.message.answer("Вот что у нас есть:", reply_markup=kb)
     await callback.answer()
 
 
