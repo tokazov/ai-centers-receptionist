@@ -994,6 +994,23 @@ async def on_text(message: types.Message):
         await message.answer(response, reply_markup=kb)
         return
 
+    # === New user without /start → launch sales funnel ===
+    if not session.get("history") and not session.get("funnel_shown"):
+        session["funnel_shown"] = True
+        lang = session.get("lang") or detect_lang(message.from_user)
+        session["lang"] = lang
+        name = message.from_user.first_name or "друг"
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t(lang, "biz_restaurant"), callback_data="biz_restaurant"),
+             InlineKeyboardButton(text=t(lang, "biz_clinic"), callback_data="biz_clinic")],
+            [InlineKeyboardButton(text=t(lang, "biz_salon"), callback_data="biz_salon"),
+             InlineKeyboardButton(text=t(lang, "biz_shop"), callback_data="biz_shop")],
+            [InlineKeyboardButton(text=t(lang, "biz_services"), callback_data="biz_services"),
+             InlineKeyboardButton(text=t(lang, "biz_other"), callback_data="biz_other")],
+        ])
+        await message.answer(t(lang, "welcome", name=name), reply_markup=kb)
+        return
+
     # === Mode: receptionist (default) ===
     response = gemini_chat(SYSTEM_PROMPT, session["history"], text)
     session["history"].append({"user": text, "bot": response})
