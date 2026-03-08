@@ -462,6 +462,51 @@ async def cmd_start(message: types.Message):
             logger.info(f"Buy {plan}: {uid}")
             return
 
+    if args == "computer_use_pilot":
+        session = get_session(uid)
+        session["mode"] = "cu_pilot"
+        session["cu_pilot_step"] = 1
+        session["cu_pilot_data"] = {}
+        session["funnel_shown"] = True
+        pilot_texts = {
+            "ru": ("🚀 <b>Бесплатный пилот AI Computer Use</b>\n\n"
+                   "Отлично! Запускаем бесплатный пилот.\n"
+                   "Ответьте на 3 вопроса:\n\n"
+                   "<b>1/3. Какую систему используете?</b>"),
+            "en": ("🚀 <b>Free AI Computer Use Pilot</b>\n\n"
+                   "Great! Let's start a free pilot.\n"
+                   "Answer 3 questions:\n\n"
+                   "<b>1/3. What system do you use?</b>"),
+        }
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="AmoCRM", callback_data="cu_sys_amocrm"),
+             InlineKeyboardButton(text="Bitrix24", callback_data="cu_sys_bitrix")],
+            [InlineKeyboardButton(text="1C", callback_data="cu_sys_1c"),
+             InlineKeyboardButton(text="Google Sheets", callback_data="cu_sys_gsheets")],
+            [InlineKeyboardButton(text="Другое / Other", callback_data="cu_sys_other")],
+        ])
+        await message.answer(pilot_texts.get(lang, pilot_texts["en"]), reply_markup=kb)
+        logger.info(f"CU Pilot start: {uid}")
+        return
+
+    if args == "computer_use_demo":
+        session = get_session(uid)
+        session["mode"] = "cu_demo"
+        session["funnel_shown"] = True
+        demo_texts = {
+            "ru": ("📅 <b>Демо AI Computer Use</b>\n\n"
+                   "Запланируем демо в вашей системе за 30 минут.\n\n"
+                   "<b>Когда вам удобно?</b>\n"
+                   "Напишите день и время 👇"),
+            "en": ("📅 <b>AI Computer Use Demo</b>\n\n"
+                   "Let's schedule a 30-minute demo in your system.\n\n"
+                   "<b>When works for you?</b>\n"
+                   "Write a day and time 👇"),
+        }
+        await message.answer(demo_texts.get(lang, demo_texts["en"]))
+        logger.info(f"CU Demo start: {uid}")
+        return
+
     # ── Sales funnel: Step 1 ──
     await show_funnel_step1(message)
 
@@ -748,6 +793,99 @@ async def on_computer_use_demo(callback: types.CallbackQuery):
     await callback.answer()
 
 
+# ─── Computer Use Pilot Callbacks ───
+
+@dp.callback_query(F.data.startswith("cu_sys_"))
+async def on_cu_system(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    session = get_session(uid)
+    lang = session.get("lang", "ru")
+    system_map = {"cu_sys_amocrm": "AmoCRM", "cu_sys_bitrix": "Bitrix24", "cu_sys_1c": "1C", "cu_sys_gsheets": "Google Sheets", "cu_sys_other": "Другое"}
+    system = system_map.get(callback.data, callback.data)
+
+    if not session.get("cu_pilot_data"):
+        session["cu_pilot_data"] = {}
+    session["cu_pilot_data"]["system"] = system
+    session["cu_pilot_step"] = 2
+
+    q2 = {
+        "ru": "<b>2/3. Какой процесс хотите автоматизировать?</b>\n\nНапример: выставление счетов, перенос данных, рассылка...",
+        "en": "<b>2/3. What process do you want to automate?</b>\n\nFor example: invoicing, data migration, mailing...",
+    }
+    await callback.message.answer(q2.get(lang, q2["en"]))
+    await callback.answer()
+
+
+# ─── Computer Use text handler (pilot steps 2-3 + demo) ───
+
+async def handle_cu_text(message: types.Message, session: dict) -> bool:
+    """Handle CU pilot/demo text. Returns True if handled."""
+    uid = message.from_user.id
+    lang = session.get("lang", "ru")
+    text = message.text or ""
+    mode = session.get("mode")
+
+    if mode == "cu_pilot" and session.get("cu_pilot_step") == 2:
+        session.setdefault("cu_pilot_data", {})["process"] = text
+        session["cu_pilot_step"] = 3
+        q3 = {
+            "ru": "<b>3/3. Ваш контакт для связи?</b>\n\nТелефон или Telegram 👇",
+            "en": "<b>3/3. Your contact info?</b>\n\nPhone or Telegram 👇",
+        }
+        await message.answer(q3.get(lang, q3["en"]))
+        return True
+
+    if mode == "cu_pilot" and session.get("cu_pilot_step") == 3:
+        session.setdefault("cu_pilot_data", {})["contact"] = text
+        data = session["cu_pilot_data"]
+        # Notify admin
+        try:
+            await bot.send_message(ADMIN_ID,
+                f"🚀 <b>Новый пилот Computer Use!</b>\n\n"
+                f"👤 {message.from_user.full_name} (@{message.from_user.username or '?'})\n"
+                f"🖥 Система: {data.get('system', '?')}\n"
+                f"⚙️ Процесс: {data.get('process', '?')}\n"
+                f"📞 Контакт: {data.get('contact', '?')}")
+        except Exception:
+            pass
+        done = {
+            "ru": "✅ <b>Заявка принята!</b>\n\nМы свяжемся с вами в течение 2 часов для запуска пилота.\n\nА пока можете посмотреть, как это работает:",
+            "en": "✅ <b>Application received!</b>\n\nWe'll contact you within 2 hours to start the pilot.\n\nMeanwhile, see how it works:",
+        }
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🌐 Computer Use на сайте", url="https://aicenters.co/computer-use")],
+            [InlineKeyboardButton(text="← Меню", callback_data="back_menu")],
+        ])
+        await message.answer(done.get(lang, done["en"]), reply_markup=kb)
+        session["mode"] = "receptionist"
+        session["cu_pilot_step"] = None
+        logger.info(f"CU Pilot complete: {uid} system={data.get('system')}")
+        return True
+
+    if mode == "cu_demo":
+        # Notify admin
+        try:
+            await bot.send_message(ADMIN_ID,
+                f"📅 <b>Демо Computer Use!</b>\n\n"
+                f"👤 {message.from_user.full_name} (@{message.from_user.username or '?'})\n"
+                f"🕐 Время: {text}")
+        except Exception:
+            pass
+        done = {
+            "ru": "✅ <b>Подтверждаем демо!</b>\n\nОжидайте — мы свяжемся для подтверждения времени.",
+            "en": "✅ <b>Demo confirmed!</b>\n\nWe'll contact you to confirm the time.",
+        }
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="← Меню", callback_data="back_menu")],
+        ])
+        await message.answer(done.get(lang, done["en"]), reply_markup=kb)
+        session["mode"] = "receptionist"
+        logger.info(f"CU Demo scheduled: {uid} time={text}")
+        return True
+
+    return False
+
+
 @dp.callback_query(F.data == "back_menu")
 async def on_back_menu(callback: types.CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -981,6 +1119,10 @@ async def on_text(message: types.Message):
             [InlineKeyboardButton(text=t(lang, "btn_more_question"), callback_data="funnel_question")],
         ])
         await message.answer(response, reply_markup=kb)
+        return
+
+    # === Computer Use pilot/demo flow ===
+    if await handle_cu_text(message, session):
         return
 
     # === Funnel gate: always show funnel before Gemini ===
