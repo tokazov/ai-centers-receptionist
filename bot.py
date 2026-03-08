@@ -23,6 +23,27 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from i18n import I18N
+
+SUPPORTED_LANGS = {"ru", "en", "ka", "tr", "kk", "uz"}
+
+def detect_lang(user) -> str:
+    """Detect language from Telegram language_code. Defaults to ru."""
+    code = (user.language_code or "ru")[:2].lower()
+    if code in SUPPORTED_LANGS:
+        return code
+    return "ru"  # kk/uz users mostly have ru interface
+
+def t(lang: str, key: str, **kwargs) -> str:
+    """Get translated text. Falls back to en → ru."""
+    texts = I18N.get(key, {})
+    if isinstance(texts, str):
+        return texts
+    text = texts.get(lang, texts.get("en", texts.get("ru", key)))
+    if kwargs:
+        text = text.format(**kwargs)
+    return text
+
 TOKEN = os.getenv("BOT_TOKEN", "")
 GEMINI_KEY = os.getenv("GEMINI_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -435,96 +456,28 @@ async def cmd_start(message: types.Message):
             return
 
     # ── Sales funnel: Step 1 — Qualification ──
+    lang = detect_lang(message.from_user)
+    session = get_session(uid)
+    session["lang"] = lang
     name = message.from_user.first_name or "друг"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🍽 Ресторан / кафе", callback_data="biz_restaurant"),
-         InlineKeyboardButton(text="🏥 Клиника", callback_data="biz_clinic")],
-        [InlineKeyboardButton(text="💇 Салон красоты", callback_data="biz_salon"),
-         InlineKeyboardButton(text="🛍 Магазин", callback_data="biz_shop")],
-        [InlineKeyboardButton(text="🏗 Услуги / B2B", callback_data="biz_services"),
-         InlineKeyboardButton(text="📦 Другое", callback_data="biz_other")],
+        [InlineKeyboardButton(text=t(lang, "biz_restaurant"), callback_data="biz_restaurant"),
+         InlineKeyboardButton(text=t(lang, "biz_clinic"), callback_data="biz_clinic")],
+        [InlineKeyboardButton(text=t(lang, "biz_salon"), callback_data="biz_salon"),
+         InlineKeyboardButton(text=t(lang, "biz_shop"), callback_data="biz_shop")],
+        [InlineKeyboardButton(text=t(lang, "biz_services"), callback_data="biz_services"),
+         InlineKeyboardButton(text=t(lang, "biz_other"), callback_data="biz_other")],
     ])
     await message.answer(
-        f"👋 {name}, привет!\n\n"
-        f"Я помогу <b>автоматизировать ваш бизнес</b> за 5 минут.\n\n"
-        f"Какой у вас бизнес?",
+        t(lang, "welcome", name=name),
         reply_markup=kb,
     )
-    logger.info(f"Start (sales funnel): {uid} ({message.from_user.full_name})")
+    logger.info(f"Start (sales funnel): {uid} ({message.from_user.full_name}) lang={lang}")
 
 
 # ─── Sales Funnel Callbacks ───
 
-NICHE_NAMES = {
-    "biz_restaurant": "Ресторан / кафе",
-    "biz_clinic": "Клиника",
-    "biz_salon": "Салон красоты",
-    "biz_shop": "Магазин",
-    "biz_services": "Услуги / B2B",
-    "biz_other": "Бизнес",
-}
-
-NICHE_CASES = {
-    "biz_restaurant": (
-        "🍽 <b>Кейс: Ресторан в Тбилиси</b>\n\n"
-        "Подключили AI-бота для бронирования столов и приёма заказов.\n\n"
-        "📊 <b>Результат:</b>\n"
-        "• Бот принимает 80% бронирований автоматически\n"
-        "• Экономит <b>2-3 часа</b> хостес каждый день\n"
-        "• Отвечает клиентам в WhatsApp и Telegram <b>24/7</b>\n"
-        "• Меню, адрес, часы работы — без звонков\n\n"
-        "💰 Окупился за <b>2 недели</b>."
-    ),
-    "biz_clinic": (
-        "🏥 <b>Кейс: Стоматологическая клиника</b>\n\n"
-        "AI-бот заменил администратора на входящих обращениях.\n\n"
-        "📊 <b>Результат:</b>\n"
-        "• <b>0 пропущенных</b> обращений — бот отвечает мгновенно\n"
-        "• Запись на приём, напоминания, FAQ — автоматически\n"
-        "• Пациенты получают ответы в <b>3 секунды</b> вместо 15 минут\n"
-        "• Администратор занимается только сложными случаями\n\n"
-        "💰 Экономия: <b>$800/мес</b> на зарплате."
-    ),
-    "biz_salon": (
-        "💇 <b>Кейс: Салон красоты</b>\n\n"
-        "Бот принимает записи в Instagram, WhatsApp и Telegram.\n\n"
-        "📊 <b>Результат:</b>\n"
-        "• Клиенты записываются <b>24/7</b> без администратора\n"
-        "• Бот показывает свободные слоты и цены\n"
-        "• Напоминания за 2 часа — <b>на 40% меньше</b> неприходов\n"
-        "• Мастера видят расписание в реальном времени\n\n"
-        "💰 +15 записей/неделю, которые раньше уходили конкурентам."
-    ),
-    "biz_shop": (
-        "🛍 <b>Кейс: Интернет-магазин</b>\n\n"
-        "AI-бот консультирует клиентов и помогает с выбором.\n\n"
-        "📊 <b>Результат:</b>\n"
-        "• Отвечает на вопросы о товарах, наличии, доставке\n"
-        "• <b>+30%</b> к конверсии корзины\n"
-        "• Обрабатывает возвраты и рекламации автоматически\n"
-        "• Работает на сайте, в Telegram и WhatsApp\n\n"
-        "💰 Заменяет 2 операторов поддержки."
-    ),
-    "biz_services": (
-        "🏗 <b>Кейс: Сервисная компания</b>\n\n"
-        "AI-бот квалифицирует лиды и собирает заявки.\n\n"
-        "📊 <b>Результат:</b>\n"
-        "• Собирает данные клиента: имя, задача, бюджет, сроки\n"
-        "• Передаёт горячих лидов менеджеру\n"
-        "• Отвечает на типовые вопросы (цены, сроки, портфолио)\n"
-        "• Менеджер тратит время только на <b>готовых</b> клиентов\n\n"
-        "💰 Экономит <b>3 часа/день</b> на обработке входящих."
-    ),
-    "biz_other": (
-        "🤖 <b>AI-сотрудник для любого бизнеса</b>\n\n"
-        "Наши боты работают в 20+ нишах:\n\n"
-        "• Отвечают клиентам в <b>3 секунды</b>\n"
-        "• Принимают заявки, записи, заказы\n"
-        "• Работают в Telegram, WhatsApp, на сайте\n"
-        "• Знают всё о вашем бизнесе — обучаются за 5 минут\n\n"
-        "💰 От <b>$19/мес</b>. Замещает 1-2 сотрудников."
-    ),
-}
+# Niche names and cases are now in i18n.py
 
 
 # Step 2 — Pain point
@@ -533,52 +486,57 @@ async def on_biz_select(callback: types.CallbackQuery):
     uid = callback.from_user.id
     session = get_session(uid)
     session["niche"] = callback.data
+    lang = session.get("lang", detect_lang(callback.from_user))
 
-    niche_name = NICHE_NAMES.get(callback.data, "Бизнес")
+    niche_name = t(lang, callback.data)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📩 До 10", callback_data="leads_10")],
-        [InlineKeyboardButton(text="📩 10-50", callback_data="leads_50")],
-        [InlineKeyboardButton(text="📩 50+", callback_data="leads_100")],
-        [InlineKeyboardButton(text="🤷 Не знаю точно", callback_data="leads_unknown")],
+        [InlineKeyboardButton(text=t(lang, "leads_10"), callback_data="leads_10")],
+        [InlineKeyboardButton(text=t(lang, "leads_50"), callback_data="leads_50")],
+        [InlineKeyboardButton(text=t(lang, "leads_100"), callback_data="leads_100")],
+        [InlineKeyboardButton(text=t(lang, "leads_unknown"), callback_data="leads_unknown")],
     ])
 
     await callback.message.edit_text(
-        f"✅ {niche_name} — отличная ниша!\n\n"
-        f"<b>Сколько заявок/обращений в день</b> вы обрабатываете вручную?",
+        t(lang, "leads_question", niche=niche_name),
         reply_markup=kb,
     )
     await callback.answer()
 
 
 # Step 3 — Case presentation
+NICHE_TO_CASE = {
+    "biz_restaurant": "case_restaurant", "biz_clinic": "case_clinic",
+    "biz_salon": "case_salon", "biz_shop": "case_shop",
+    "biz_services": "case_services", "biz_other": "case_other",
+}
+
 @dp.callback_query(F.data.startswith("leads_"))
 async def on_leads_select(callback: types.CallbackQuery):
     uid = callback.from_user.id
     session = get_session(uid)
     niche = session.get("niche", "biz_other")
     leads = callback.data
+    lang = session.get("lang", detect_lang(callback.from_user))
 
-    # Calculate savings estimate
-    savings = {"leads_10": "1-2 часа/день", "leads_50": "3-5 часов/день", "leads_100": "1-2 сотрудника", "leads_unknown": "до 3 часов/день"}
-    save_text = savings.get(leads, "до 3 часов/день")
+    # Get savings in user language
+    savings_dict = I18N.get("savings", {}).get(leads, I18N["savings"]["leads_unknown"])
+    save_text = savings_dict.get(lang, savings_dict.get("en", savings_dict.get("ru", "")))
 
-    case = NICHE_CASES.get(niche, NICHE_CASES["biz_other"])
+    case_key = NICHE_TO_CASE.get(niche, "case_other")
+    case = t(lang, case_key)
 
     await callback.message.edit_text(case)
 
-    # Step 4 — Offer (separate message for better UX)
+    # Step 4 — Offer
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Попробовать бесплатно (3 дня)", callback_data="funnel_demo")],
-        [InlineKeyboardButton(text="💰 Посмотреть тарифы", callback_data="funnel_pricing")],
-        [InlineKeyboardButton(text="❓ Задать вопрос", callback_data="funnel_question")],
+        [InlineKeyboardButton(text=t(lang, "btn_try_free"), callback_data="funnel_demo")],
+        [InlineKeyboardButton(text=t(lang, "btn_pricing"), callback_data="funnel_pricing")],
+        [InlineKeyboardButton(text=t(lang, "btn_question"), callback_data="funnel_question")],
     ])
 
     await callback.message.answer(
-        f"⚡ <b>AI-сотрудник сэкономит вам {save_text}</b>\n\n"
-        f"Запустим за 5 минут. Первые <b>3 дня бесплатно</b>.\n"
-        f"Не подойдёт — просто отключите.\n\n"
-        f"Что выберете?",
+        t(lang, "offer", savings=save_text),
         reply_markup=kb,
     )
     await callback.answer()
@@ -589,62 +547,86 @@ async def on_leads_select(callback: types.CallbackQuery):
 async def on_funnel_demo(callback: types.CallbackQuery):
     uid = callback.from_user.id
     session = get_session(uid)
+    lang = session.get("lang", detect_lang(callback.from_user))
     niche = session.get("niche", "biz_other")
-    niche_name = NICHE_NAMES.get(niche, "вашего бизнеса")
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🤖 Открыть демо-бота", url="https://t.me/aicenters_demo_bot")],
-        [InlineKeyboardButton(text="🌐 Создать бота с вашим сайтом", callback_data="create")],
-        [InlineKeyboardButton(text="💰 Сразу к тарифам", callback_data="funnel_pricing")],
+        [InlineKeyboardButton(text=t(lang, "btn_open_demo"), url="https://t.me/aicenters_demo_bot")],
+        [InlineKeyboardButton(text=t(lang, "btn_create_site"), callback_data="create")],
+        [InlineKeyboardButton(text=t(lang, "btn_go_pricing"), callback_data="funnel_pricing")],
     ])
 
     await callback.message.edit_text(
-        f"🎉 <b>Отлично!</b>\n\n"
-        f"Вот демо-бот — попробуйте как AI отвечает клиентам.\n\n"
-        f"А если у вас есть сайт — я могу создать бота <b>прямо сейчас</b>, "
-        f"обученного на вашем бизнесе. За 5 минут. Бесплатно.",
+        t(lang, "demo_intro"),
         reply_markup=kb,
     )
     await callback.answer()
 
     try:
+        niche_name = t(lang, niche)
         await bot.send_message(ADMIN_ID,
             f"🔥 Лид (демо)!\n{callback.from_user.full_name} (@{callback.from_user.username or '?'})\n"
-            f"Ниша: {niche_name}\nID: {uid}")
+            f"Ниша: {niche_name}\nLang: {lang}\nID: {uid}")
     except: pass
 
 
 # Step 5b — Pricing (Starter as main option)
+PRICING_DETAILS = {
+    "ru": (
+        "⭐ <b>Starter — $149 + $19/мес</b> ← 90% клиентов начинают здесь\n"
+        "• 1 AI-сотрудник\n• Telegram + WhatsApp + сайт\n• Обучение на ваших данных\n• Настройка за 5 минут\n\n"
+        "🚀 <b>Pro — $299 + $49/мес</b>\n• 3 AI-сотрудника\n• CRM интеграция\n• Приоритетная поддержка\n\n"
+        "🏢 <b>Business — $499 + $79/мес</b>\n• 10 AI-сотрудников\n• API + webhook\n• Персональный менеджер"
+    ),
+    "en": (
+        "⭐ <b>Starter — $149 + $19/mo</b> ← 90% of clients start here\n"
+        "• 1 AI employee\n• Telegram + WhatsApp + website\n• Trained on your data\n• Setup in 5 minutes\n\n"
+        "🚀 <b>Pro — $299 + $49/mo</b>\n• 3 AI employees\n• CRM integration\n• Priority support\n\n"
+        "🏢 <b>Business — $499 + $79/mo</b>\n• 10 AI employees\n• API + webhook\n• Personal manager"
+    ),
+    "ka": (
+        "⭐ <b>Starter — $149 + $19/თვე</b> ← კლიენტების 90% აქედან იწყებს\n"
+        "• 1 AI თანამშრომელი\n• Telegram + WhatsApp + საიტი\n• თქვენს მონაცემებზე სწავლება\n• დაყენება 5 წუთში\n\n"
+        "🚀 <b>Pro — $299 + $49/თვე</b>\n• 3 AI თანამშრომელი\n• CRM ინტეგრაცია\n• პრიორიტეტული მხარდაჭერა\n\n"
+        "🏢 <b>Business — $499 + $79/თვე</b>\n• 10 AI თანამშრომელი\n• API + webhook\n• პერსონალური მენეჯერი"
+    ),
+    "tr": (
+        "⭐ <b>Starter — $149 + $19/ay</b> ← Müşterilerin %90'ı buradan başlıyor\n"
+        "• 1 AI çalışan\n• Telegram + WhatsApp + web sitesi\n• Verilerinizle eğitim\n• 5 dakikada kurulum\n\n"
+        "🚀 <b>Pro — $299 + $49/ay</b>\n• 3 AI çalışan\n• CRM entegrasyonu\n• Öncelikli destek\n\n"
+        "🏢 <b>Business — $499 + $79/ay</b>\n• 10 AI çalışan\n• API + webhook\n• Kişisel yönetici"
+    ),
+    "kk": (
+        "⭐ <b>Starter — $149 + $19/ай</b> ← 90% клиенттер осыдан бастайды\n"
+        "• 1 AI қызметкер\n• Telegram + WhatsApp + сайт\n• Деректеріңізде оқыту\n• 5 минутта баптау\n\n"
+        "🚀 <b>Pro — $299 + $49/ай</b>\n• 3 AI қызметкер\n• CRM интеграция\n\n"
+        "🏢 <b>Business — $499 + $79/ай</b>\n• 10 AI қызметкер\n• API + webhook"
+    ),
+    "uz": (
+        "⭐ <b>Starter — $149 + $19/oy</b> ← Mijozlarning 90% shu yerdan boshlaydi\n"
+        "• 1 AI xodim\n• Telegram + WhatsApp + sayt\n• Ma'lumotlaringizda o'qitish\n• 5 daqiqada sozlash\n\n"
+        "🚀 <b>Pro — $299 + $49/oy</b>\n• 3 AI xodim\n• CRM integratsiya\n\n"
+        "🏢 <b>Business — $499 + $79/oy</b>\n• 10 AI xodim\n• API + webhook"
+    ),
+}
+
 @dp.callback_query(F.data == "funnel_pricing")
 async def on_funnel_pricing(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    session = get_session(uid)
+    lang = session.get("lang", detect_lang(callback.from_user))
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⭐ Starter — $149 + $19/мес", callback_data="funnel_buy_starter")],
-        [InlineKeyboardButton(text="🚀 Pro — $299 + $49/мес (3 бота)", callback_data="funnel_buy_pro")],
-        [InlineKeyboardButton(text="🏢 Business — $499 + $79/мес (10 ботов)", callback_data="funnel_buy_business")],
-        [InlineKeyboardButton(text="🆓 Сначала попробовать бесплатно", callback_data="funnel_demo")],
-        [InlineKeyboardButton(text="❓ Помогите выбрать", callback_data="funnel_question")],
+        [InlineKeyboardButton(text=t(lang, "pricing_starter_label"), callback_data="funnel_buy_starter")],
+        [InlineKeyboardButton(text="🚀 Pro — $299 + $49/mo", callback_data="funnel_buy_pro")],
+        [InlineKeyboardButton(text="🏢 Business — $499 + $79/mo", callback_data="funnel_buy_business")],
+        [InlineKeyboardButton(text=t(lang, "btn_try_free_short"), callback_data="funnel_demo")],
+        [InlineKeyboardButton(text=t(lang, "btn_help_choose"), callback_data="funnel_question")],
     ])
 
+    details = PRICING_DETAILS.get(lang, PRICING_DETAILS["en"])
     await callback.message.edit_text(
-        "💰 <b>Тарифы AI Centers</b>\n\n"
-
-        "⭐ <b>Starter — $149 + $19/мес</b> ← 90% клиентов начинают здесь\n"
-        "• 1 AI-сотрудник\n"
-        "• Telegram + WhatsApp + сайт\n"
-        "• Обучение на ваших данных\n"
-        "• Настройка за 5 минут\n\n"
-
-        "🚀 <b>Pro — $299 + $49/мес</b>\n"
-        "• 3 AI-сотрудника\n"
-        "• CRM интеграция\n"
-        "• Приоритетная поддержка\n\n"
-
-        "🏢 <b>Business — $499 + $79/мес</b>\n"
-        "• 10 AI-сотрудников\n"
-        "• API + webhook\n"
-        "• Персональный менеджер\n\n"
-
-        "💡 Все тарифы: настройка + первый месяц. Отмена в любой момент.",
+        f"{t(lang, 'pricing_title')}\n\n{details}\n\n{t(lang, 'pricing_footer')}",
         reply_markup=kb,
     )
     await callback.answer()
@@ -653,26 +635,26 @@ async def on_funnel_pricing(callback: types.CallbackQuery):
 # Funnel buy → checkout
 @dp.callback_query(F.data.startswith("funnel_buy_"))
 async def on_funnel_buy(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    session = get_session(uid)
+    lang = session.get("lang", detect_lang(callback.from_user))
     plan = callback.data.replace("funnel_buy_", "")
     plan_data = {
-        "starter": {"name": "Starter", "setup": "$149", "monthly": "$19/мес", "stars": 250},
-        "pro": {"name": "Pro", "setup": "$299", "monthly": "$49/мес", "stars": 500},
-        "business": {"name": "Business", "setup": "$499", "monthly": "$79/мес", "stars": 1000},
+        "starter": {"name": "Starter", "setup": "$149", "monthly": "$19/mo", "stars": 250},
+        "pro": {"name": "Pro", "setup": "$299", "monthly": "$49/mo", "stars": 500},
+        "business": {"name": "Business", "setup": "$499", "monthly": "$79/mo", "stars": 1000},
     }
     p = plan_data.get(plan, plan_data["starter"])
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"⭐ Оплатить {p['stars']} Stars", callback_data=f"pay_{plan}")],
-        [InlineKeyboardButton(text="₿ Криптовалюта", url=f"https://aicenters.co/checkout?plan={plan}")],
-        [InlineKeyboardButton(text="💳 Банковский перевод", callback_data="pay_bank")],
-        [InlineKeyboardButton(text="← Назад к тарифам", callback_data="funnel_pricing")],
+        [InlineKeyboardButton(text=t(lang, "btn_pay_stars", stars=p["stars"]), callback_data=f"pay_{plan}")],
+        [InlineKeyboardButton(text=t(lang, "btn_crypto"), url=f"https://aicenters.co/checkout?plan={plan}&lang={lang}")],
+        [InlineKeyboardButton(text=t(lang, "btn_bank"), callback_data="pay_bank")],
+        [InlineKeyboardButton(text=t(lang, "btn_back_pricing"), callback_data="funnel_pricing")],
     ])
 
     await callback.message.edit_text(
-        f"🎯 <b>Тариф {p['name']}</b>\n\n"
-        f"Настройка: {p['setup']} (разово)\n"
-        f"Подписка: {p['monthly']}\n\n"
-        f"Выберите способ оплаты:",
+        t(lang, "payment_choose", plan=p["name"], setup=p["setup"], monthly=p["monthly"]),
         reply_markup=kb,
     )
     await callback.answer()
@@ -680,7 +662,7 @@ async def on_funnel_buy(callback: types.CallbackQuery):
     try:
         await bot.send_message(ADMIN_ID,
             f"💰 Лид (оплата)!\n{callback.from_user.full_name} (@{callback.from_user.username or '?'})\n"
-            f"План: {p['name']}\nID: {callback.from_user.id}")
+            f"План: {p['name']}\nLang: {lang}\nID: {uid}")
     except: pass
 
 
@@ -690,16 +672,9 @@ async def on_funnel_question(callback: types.CallbackQuery):
     uid = callback.from_user.id
     session = get_session(uid)
     session["mode"] = "objection_handler"
+    lang = session.get("lang", detect_lang(callback.from_user))
 
-    await callback.message.edit_text(
-        "💬 <b>Задайте любой вопрос!</b>\n\n"
-        "Например:\n"
-        "• Подойдёт ли для моего бизнеса?\n"
-        "• Чем отличается от обычного чат-бота?\n"
-        "• Как быстро настраивается?\n"
-        "• Можно ли попробовать бесплатно?\n\n"
-        "Просто напишите — я отвечу 👇"
-    )
+    await callback.message.edit_text(t(lang, "ask_question"))
     await callback.answer()
 
 
@@ -997,19 +972,22 @@ async def on_text(message: types.Message):
     
     # === Mode: objection handler (sales funnel Q&A) ===
     if session.get("mode") == "objection_handler":
+        lang = session.get("lang", "ru")
+        lang_instruction = {"ru": "Отвечай на русском.", "en": "Answer in English.", "ka": "უპასუხე ქართულად.", "tr": "Türkçe cevap ver.", "kk": "Қазақша жауап бер.", "uz": "O'zbekcha javob ber."}
         objection_prompt = (
-            SYSTEM_PROMPT + "\n\nРЕЖИМ ОБРАБОТКИ ВОЗРАЖЕНИЙ. "
+            SYSTEM_PROMPT + f"\n\nРЕЖИМ ОБРАБОТКИ ВОЗРАЖЕНИЙ. "
+            f"{lang_instruction.get(lang, 'Answer in English.')} "
             "Клиент интересуется AI-ботом для бизнеса, но задаёт вопросы перед покупкой. "
             "Отвечай коротко (2-4 предложения), конкретно, с фактами. "
-            "В конце каждого ответа мягко возвращай к действию: 'Хотите попробовать бесплатно или посмотреть тарифы?'"
+            "В конце ответа мягко верни к действию."
         )
         response = gemini_chat(objection_prompt, session["history"], text)
         session["history"].append({"user": text, "bot": response})
 
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Попробовать бесплатно", callback_data="funnel_demo")],
-            [InlineKeyboardButton(text="💰 Посмотреть тарифы", callback_data="funnel_pricing")],
-            [InlineKeyboardButton(text="❓ Ещё вопрос", callback_data="funnel_question")],
+            [InlineKeyboardButton(text=t(lang, "btn_try_free").split("(")[0].strip(), callback_data="funnel_demo")],
+            [InlineKeyboardButton(text=t(lang, "btn_pricing"), callback_data="funnel_pricing")],
+            [InlineKeyboardButton(text=t(lang, "btn_more_question"), callback_data="funnel_question")],
         ])
         await message.answer(response, reply_markup=kb)
         return
