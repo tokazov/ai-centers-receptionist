@@ -1103,6 +1103,7 @@ async def on_text(message: types.Message):
 
 async def main():
     logger.info("AI Centers Receptionist (live mode) starting...")
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
