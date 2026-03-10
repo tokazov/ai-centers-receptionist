@@ -62,7 +62,6 @@ ELEVENLABS_KEY = os.getenv("ELEVENLABS_KEY", "")
 VOICE_ID = os.getenv("VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Sarah — warm female voice for receptionist
 VOICE_ENABLED = bool(ELEVENLABS_KEY)
 OPENAI_KEY = os.getenv("OPENAI_KEY", "")
-OPENAI_KEY = os.getenv("OPENAI_KEY", "")
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher(storage=MemoryStorage())
@@ -338,7 +337,7 @@ async def on_payment(message: types.Message):
             f"🆔 {user.id}\n"
             f"⭐ {stars} stars — план: {plan_key}\n"
             f"📝 Помощник: {session.get('persona', 'рецепционист')[:200]}")
-    except: pass
+    except Exception: pass
     
     logger.info(f"Payment: {uid} paid {stars} stars for {plan_key}")
 
@@ -509,6 +508,28 @@ async def cmd_start(message: types.Message):
         logger.info(f"CU Demo start: {uid}")
         return
 
+    if args == "computer_use_start":
+        session = get_session(uid)
+        session["funnel_shown"] = True
+        start_texts = {
+            "ru": ("🖥 <b>AI Computer Use</b>\n\n"
+                   "Отлично! Менеджер свяжется с вами и настроит AI-сотрудника под ваши задачи.\n\n"
+                   "📞 Напишите ваш контакт (телефон или Telegram) 👇"),
+            "en": ("🖥 <b>AI Computer Use</b>\n\n"
+                   "Great! Our manager will contact you to set up the AI worker for your tasks.\n\n"
+                   "📞 Write your contact (phone or Telegram) 👇"),
+            "ka": ("🖥 <b>AI Computer Use</b>\n\n"
+                   "შესანიშნავი! მენეჯერი დაგიკავშირდებათ და დააყენებს AI-თანამშრომელს.\n\n"
+                   "📞 დაწერეთ თქვენი საკონტაქტო 👇"),
+            "tr": ("🖥 <b>AI Computer Use</b>\n\n"
+                   "Harika! Yöneticimiz sizinle iletişime geçip AI çalışanını kuracak.\n\n"
+                   "📞 İletişim bilgilerinizi yazın 👇"),
+        }
+        session["mode"] = "cu_start_contact"
+        await message.answer(start_texts.get(lang, start_texts["en"]))
+        logger.info(f"CU Start: {uid}")
+        return
+
     # ── Sales funnel: Step 1 ──
     await show_funnel_step1(message)
 
@@ -605,7 +626,7 @@ async def on_funnel_demo(callback: types.CallbackQuery):
         await bot.send_message(ADMIN_ID,
             f"🔥 Лид (демо)!\n{callback.from_user.full_name} (@{callback.from_user.username or '?'})\n"
             f"Ниша: {niche_name}\nLang: {lang}\nID: {uid}")
-    except: pass
+    except Exception: pass
 
 
 # Step 5b — Pricing (Starter as main option)
@@ -701,7 +722,7 @@ async def on_funnel_buy(callback: types.CallbackQuery):
         await bot.send_message(ADMIN_ID,
             f"💰 Лид (оплата)!\n{callback.from_user.full_name} (@{callback.from_user.username or '?'})\n"
             f"План: {p['name']}\nLang: {lang}\nID: {uid}")
-    except: pass
+    except Exception: pass
 
 
 # Step 5c — Question → Gemini handles objections, then returns to offer
@@ -883,6 +904,28 @@ async def handle_cu_text(message: types.Message, session: dict) -> bool:
         await message.answer(done.get(lang, done["en"]), reply_markup=kb)
         session["mode"] = "receptionist"
         logger.info(f"CU Demo scheduled: {uid} time={text}")
+        return True
+
+    if mode == "cu_start_contact":
+        try:
+            await bot.send_message(ADMIN_ID,
+                f"🖥 <b>Новый клиент Computer Use (с сайта)!</b>\n\n"
+                f"👤 {message.from_user.full_name} (@{message.from_user.username or '?'})\n"
+                f"📞 Контакт: {text}")
+        except Exception:
+            pass
+        done = {
+            "ru": "✅ <b>Заявка принята!</b>\n\nМенеджер свяжется с вами в течение 2 часов.",
+            "en": "✅ <b>Request received!</b>\n\nOur manager will contact you within 2 hours.",
+            "ka": "✅ <b>მოთხოვნა მიღებულია!</b>\n\nმენეჯერი დაგიკავშირდებათ 2 საათში.",
+            "tr": "✅ <b>Talep alındı!</b>\n\nYöneticimiz 2 saat içinde sizinle iletişime geçecek.",
+        }
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="← Меню", callback_data="back_menu")],
+        ])
+        await message.answer(done.get(lang, done["en"]), reply_markup=kb)
+        session["mode"] = "receptionist"
+        logger.info(f"CU Start contact: {uid} contact={text}")
         return True
 
     return False
@@ -1069,7 +1112,7 @@ async def on_text(message: types.Message):
                     f"📝 Помощник: {session['persona'][:200]}\n"
                     f"💬 {session['count']} сообщений использовано\n"
                     f"⭐ Кнопки оплаты Stars отправлены")
-            except: pass
+            except Exception: pass
             return
         
         # Paid user — no limit
@@ -1183,7 +1226,7 @@ async def on_text(message: types.Message):
                 f"🆕 <b>Новый AI-помощник!</b>\n"
                 f"👤 {user.full_name}{(' (@' + user.username + ')') if user.username else ''}\n"
                 f"📝 {persona[:300]}")
-        except: pass
+        except Exception: pass
         
         logger.info(f"Created assistant for {uid}: {persona[:100]}")
     else:
